@@ -12,14 +12,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Star rating functionality
 function initializeStarRatings() {
+    console.log('Initializing star ratings...');
     document.querySelectorAll('.star-rating-interactive').forEach(ratingElement => {
         const stars = ratingElement.querySelectorAll('.star-interactive');
         const licensePlate = ratingElement.dataset.licensePlate;
         
+        console.log(`Found rating element for ${licensePlate} with ${stars.length} stars`);
+        
         stars.forEach((star, index) => {
+            star.style.cursor = 'pointer';
             star.addEventListener('mouseenter', () => highlightStars(stars, index + 1));
             star.addEventListener('mouseleave', () => resetStars(stars, getCurrentRating(ratingElement)));
-            star.addEventListener('click', () => setRating(stars, index + 1, licensePlate, ratingElement));
+            star.addEventListener('click', () => {
+                console.log(`Star ${index + 1} clicked for ${licensePlate}`);
+                setRating(stars, index + 1, licensePlate, ratingElement);
+            });
         });
     });
 }
@@ -88,12 +95,15 @@ async function submitRating(licensePlate, rating) {
 }
 
 async function submitComment(licensePlate) {
+    console.log('submitComment called for:', licensePlate);
     const commentText = document.getElementById('comment').value.trim();
     
     if (!commentText) {
         showAlert('Komentarz nie może być pusty', 'warning');
         return;
     }
+    
+    console.log('Submitting comment:', commentText);
     
     try {
         showLoading(true);
