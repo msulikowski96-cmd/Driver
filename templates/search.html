@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Wyszukiwanie - Oceny Kierowców{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title mb-0">
+                    <i class="fas fa-search me-2"></i>Wyszukiwanie pojazdów
+                </h2>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('search') }}" method="GET" class="mb-4">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-car"></i>
+                                </span>
+                                <input type="text" class="form-control form-control-lg" name="q" 
+                                       value="{{ query }}" placeholder="Wprowadź numer rejestracyjny..." 
+                                       pattern="[A-Za-z0-9\s]+" title="Tylko litery i cyfry">
+                                <button class="btn btn-primary btn-lg" type="submit">
+                                    <i class="fas fa-search me-1"></i>Szukaj
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Wprowadź numer rejestracyjny (tylko litery i cyfry)
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            {% if session.user_id and query and not vehicles %}
+                            <button type="button" class="btn btn-success btn-lg w-100" onclick="addNewVehicle('{{ query }}')">
+                                <i class="fas fa-plus me-1"></i>Dodaj pojazd
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </form>
+
+                {% if query %}
+                    {% if vehicles %}
+                        <h5 class="mb-3">
+                            <i class="fas fa-list me-2"></i>
+                            Znalezione pojazdy ({{ vehicles|length }})
+                        </h5>
+                        
+                        <div class="row">
+                            {% for vehicle in vehicles %}
+                            <div class="col-md-6 col-lg-4 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <h5 class="card-title">
+                                            <i class="fas fa-car me-2"></i>{{ vehicle.license_plate }}
+                                            {% if vehicle.is_blocked %}
+                                                <span class="badge bg-danger ms-2">Zablokowany</span>
+                                            {% endif %}
+                                        </h5>
+                                        
+                                        {% set avg_rating = vehicle.get_average_rating() %}
+                                        {% set rating_count = vehicle.get_rating_count() %}
+                                        
+                                        <div class="mb-3">
+                                            <div class="star-rating">
+                                                {% for i in range(1, 6) %}
+                                                    <i class="fas fa-star {% if i <= avg_rating %}text-warning{% else %}text-muted{% endif %}"></i>
+                                                {% endfor %}
+                                            </div>
+                                            <small class="text-muted d-block mt-1">
+                                                {% if rating_count > 0 %}
+                                                    {{ "%.1f"|format(avg_rating) }}/5 ({{ rating_count }} ocen)
+                                                {% else %}
+                                                    Brak ocen
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar-alt me-1"></i>
+                                                Dodano: {{ vehicle.created_at.strftime('%d.%m.%Y') }}
+                                            </small>
+                                        </div>
+                                        
+                                        <div class="d-grid">
+                                            <a href="{{ url_for('vehicle_detail', license_plate=vehicle.license_plate) }}" 
+                                               class="btn btn-primary">
+                                                <i class="fas fa-eye me-1"></i>Zobacz szczegóły
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-search fa-4x text-muted mb-3"></i>
+                            <h4 class="text-muted">Nie znaleziono pojazdu</h4>
+                            <p class="text-muted">Pojazd o numerze "{{ query }}" nie został jeszcze dodany do bazy.</p>
+                            {% if session.user_id %}
+                                <button class="btn btn-success btn-lg" onclick="addNewVehicle('{{ query }}')">
+                                    <i class="fas fa-plus me-1"></i>Dodaj ten pojazd
+                                </button>
+                            {% else %}
+                                <p class="text-muted">
+                                    <a href="{{ url_for('login') }}" class="text-decoration-none">Zaloguj się</a>, 
+                                    aby dodać nowy pojazd.
+                                </p>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-search fa-4x text-muted mb-3"></i>
+                        <h4 class="text-muted">Wyszukaj pojazd</h4>
+                        <p class="text-muted">Wprowadź numer rejestracyjny w polu powyżej, aby znaleźć pojazd.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if query and vehicles %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-lightbulb me-2"></i>Wskazówki
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-star text-warning me-2"></i>Jak oceniać?</h6>
+                        <ul class="small">
+                            <li>Oceń obiektywnie zachowanie na drodze</li>
+                            <li>Weź pod uwagę bezpieczeństwo i kulturę jazdy</li>
+                            <li>Bądź fair - każdy może mieć gorszy dzień</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-comments text-info me-2"></i>Komentarze</h6>
+                        <ul class="small">
+                            <li>Opisz konkretne sytuacje</li>
+                            <li>Unikaj wulgaryzmów i obraźliwych słów</li>
+                            <li>Konstruktywna krytyka jest mile widziana</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function addNewVehicle(licensePlate) {
+    if (!licensePlate || licensePlate.trim() === '') {
+        showAlert('Wprowadź poprawny numer rejestracyjny', 'warning');
+        return;
+    }
+    
+    // Redirect to vehicle detail page - it will create the vehicle if it doesn't exist
+    // We'll handle this in the backend by creating vehicle when first rating is added
+    showAlert('Aby dodać pojazd, oceń go w następnym kroku', 'info');
+    
+    // For now, just redirect to a page that will handle adding
+    setTimeout(() => {
+        window.location.href = `/vehicle/${licensePlate}`;
+    }, 1500);
+}
+</script>
+{% endblock %}

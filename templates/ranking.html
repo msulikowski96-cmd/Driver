@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Ranking Kierowców - Oceny Kierowców{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2 class="card-title mb-0">
+                        <i class="fas fa-trophy me-2"></i>Ranking Kierowców
+                    </h2>
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('ranking', sort='best') }}" 
+                           class="btn btn-{% if sort_order == 'best' %}primary{% else %}outline-primary{% endif %}">
+                            <i class="fas fa-arrow-up me-1"></i>Najlepsi
+                        </a>
+                        <a href="{{ url_for('ranking', sort='worst') }}" 
+                           class="btn btn-{% if sort_order == 'worst' %}danger{% else %}outline-danger{% endif %}">
+                            <i class="fas fa-arrow-down me-1"></i>Najgorsi
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if vehicles_with_ratings %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th width="80">Pozycja</th>
+                                    <th>Numer rejestracyjny</th>
+                                    <th width="200">Średnia ocena</th>
+                                    <th width="120">Liczba ocen</th>
+                                    <th width="100">Akcje</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in vehicles_with_ratings[:50] %}
+                                <tr>
+                                    <td>
+                                        <span class="badge {% if loop.index <= 3 %}bg-warning{% elif loop.index <= 10 %}bg-info{% else %}bg-secondary{% endif %} rounded-pill">
+                                            #{{ loop.index }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <strong>{{ item.vehicle.license_plate }}</strong>
+                                        {% if item.vehicle.is_blocked %}
+                                            <span class="badge bg-danger ms-2">Zablokowany</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="star-rating">
+                                            {% for i in range(1, 6) %}
+                                                <i class="fas fa-star {% if i <= item.avg_rating %}text-warning{% else %}text-muted{% endif %}"></i>
+                                            {% endfor %}
+                                            <span class="ms-2 fw-bold">{{ "%.2f"|format(item.avg_rating) }}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary rounded-pill">{{ item.rating_count }}</span>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('vehicle_detail', license_plate=item.vehicle.license_plate) }}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {% if vehicles_with_ratings|length > 50 %}
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Wyświetlono pierwsze 50 wyników z {{ vehicles_with_ratings|length }} dostępnych.
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-trophy fa-4x text-muted mb-3"></i>
+                        <h4 class="text-muted">Brak danych do rankingu</h4>
+                        <p class="text-muted">Dodaj pierwsze oceny, aby zobaczyć ranking kierowców.</p>
+                        <a href="{{ url_for('search') }}" class="btn btn-primary">
+                            <i class="fas fa-search me-1"></i>Znajdź pojazd do oceny
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if vehicles_with_ratings %}
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-medal me-2"></i>Top 10 najlepszych
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% for item in vehicles_with_ratings[:10] if sort_order == 'best' %}
+                        <div class="d-flex justify-content-between align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
+                            <div>
+                                <span class="fw-bold">{{ loop.index }}. {{ item.vehicle.license_plate }}</span>
+                                {% if item.vehicle.is_blocked %}
+                                    <small class="text-danger">(zablokowany)</small>
+                                {% endif %}
+                            </div>
+                            <div class="text-end">
+                                <div class="star-rating-small">
+                                    {% for i in range(1, 6) %}
+                                        <i class="fas fa-star {% if i <= item.avg_rating %}text-warning{% else %}text-muted{% endif %}"></i>
+                                    {% endfor %}
+                                </div>
+                                <small class="text-muted">{{ "%.2f"|format(item.avg_rating) }} ({{ item.rating_count }})</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-exclamation-triangle me-2"></i>Top 10 najgorszych
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% for item in vehicles_with_ratings|reverse|list[:10] if sort_order == 'best' %}
+                        <div class="d-flex justify-content-between align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
+                            <div>
+                                <span class="fw-bold">{{ loop.index }}. {{ item.vehicle.license_plate }}</span>
+                                {% if item.vehicle.is_blocked %}
+                                    <small class="text-danger">(zablokowany)</small>
+                                {% endif %}
+                            </div>
+                            <div class="text-end">
+                                <div class="star-rating-small">
+                                    {% for i in range(1, 6) %}
+                                        <i class="fas fa-star {% if i <= item.avg_rating %}text-warning{% else %}text-muted{% endif %}"></i>
+                                    {% endfor %}
+                                </div>
+                                <small class="text-muted">{{ "%.2f"|format(item.avg_rating) }} ({{ item.rating_count }})</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

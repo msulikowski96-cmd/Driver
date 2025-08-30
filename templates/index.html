@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Strona główna - Oceny Kierowców{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title mb-0">
+                    <i class="fas fa-star text-warning me-2"></i>
+                    Witaj w systemie ocen kierowców!
+                </h2>
+            </div>
+            <div class="card-body">
+                <p class="lead">Oceń zachowanie kierowców na drodze i pomóż budować bezpieczniejszy transport.</p>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-plus-circle text-success me-2"></i>Możesz:</h5>
+                        <ul>
+                            <li>Oceniać kierowców (1-5 gwiazdek)</li>
+                            <li>Dodawać komentarze</li>
+                            <li>Przeglądać ranking najlepszych</li>
+                            <li>Szukać po numerach rejestracyjnych</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-shield-alt text-info me-2"></i>Bezpieczeństwo:</h5>
+                        <ul>
+                            <li>Moderacja treści</li>
+                            <li>Zgłaszanie nieodpowiednich komentarzy</li>
+                            <li>Panel administracyjny</li>
+                            <li>Prywatność użytkowników</li>
+                        </ul>
+                    </div>
+                </div>
+
+                {% if not session.user_id %}
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('register') }}" class="btn btn-primary me-2">
+                        <i class="fas fa-user-plus me-1"></i>Zarejestruj się
+                    </a>
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-sign-in-alt me-1"></i>Zaloguj się
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if recent_vehicles %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h3 class="card-title mb-0">
+                    <i class="fas fa-clock text-info me-2"></i>
+                    Ostatnio oceniane pojazdy
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for vehicle in recent_vehicles %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-car me-2"></i>{{ vehicle.license_plate }}
+                                </h5>
+                                <div class="mb-2">
+                                    {% set avg_rating = vehicle.get_average_rating() %}
+                                    <div class="star-rating">
+                                        {% for i in range(1, 6) %}
+                                            <i class="fas fa-star {% if i <= avg_rating %}text-warning{% else %}text-muted{% endif %}"></i>
+                                        {% endfor %}
+                                        <span class="ms-2 text-muted">
+                                            ({{ "%.1f"|format(avg_rating) }} - {{ vehicle.get_rating_count() }} ocen)
+                                        </span>
+                                    </div>
+                                </div>
+                                <a href="{{ url_for('vehicle_detail', license_plate=vehicle.license_plate) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye me-1"></i>Zobacz szczegóły
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title mb-0">
+                    <i class="fas fa-search me-2"></i>Szybkie wyszukiwanie
+                </h4>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('search') }}" method="GET">
+                    <div class="input-group">
+                        <input type="text" class="form-control" name="q" placeholder="Numer rejestracyjny..." pattern="[A-Za-z0-9\s]+" title="Tylko litery i cyfry">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h4 class="card-title mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Jak oceniać?
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="rating-guide">
+                    <div class="mb-2">
+                        <span class="star-rating">
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-muted"></i>
+                            <i class="fas fa-star text-muted"></i>
+                            <i class="fas fa-star text-muted"></i>
+                            <i class="fas fa-star text-muted"></i>
+                        </span>
+                        <small class="ms-2">Bardzo źle</small>
+                    </div>
+                    <div class="mb-2">
+                        <span class="star-rating">
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-muted"></i>
+                            <i class="fas fa-star text-muted"></i>
+                            <i class="fas fa-star text-muted"></i>
+                        </span>
+                        <small class="ms-2">Źle</small>
+                    </div>
+                    <div class="mb-2">
+                        <span class="star-rating">
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-muted"></i>
+                            <i class="fas fa-star text-muted"></i>
+                        </span>
+                        <small class="ms-2">Średnio</small>
+                    </div>
+                    <div class="mb-2">
+                        <span class="star-rating">
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-muted"></i>
+                        </span>
+                        <small class="ms-2">Dobrze</small>
+                    </div>
+                    <div class="mb-2">
+                        <span class="star-rating">
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                        </span>
+                        <small class="ms-2">Bardzo dobrze</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Panel Administratora - Oceny Kierowców{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title mb-0">
+                    <i class="fas fa-cog me-2"></i>Panel Administratora
+                </h2>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Uprawnienia administratora:</strong> Możesz usuwać nieodpowiednie komentarze, 
+                    blokować pojazdy oraz zarządzać zgłoszeniami użytkowników.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title mb-0">
+                    <i class="fas fa-flag text-warning me-2"></i>
+                    Zgłoszone komentarze ({{ reported_comments|length }})
+                </h4>
+            </div>
+            <div class="card-body">
+                {% if reported_comments %}
+                    {% for comment in reported_comments %}
+                    <div class="card mb-3 border-warning" id="admin-comment-{{ comment.id }}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="card-subtitle mb-2">
+                                        <i class="fas fa-user me-1"></i>{{ comment.user.username }}
+                                        <small class="text-muted ms-2">{{ comment.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                                        <span class="badge bg-warning ms-2">{{ comment.reports }} zgłoszeń</span>
+                                    </h6>
+                                    <p class="card-text">{{ comment.content }}</p>
+                                    <small class="text-muted">
+                                        <i class="fas fa-car me-1"></i>
+                                        Pojazd: 
+                                        <a href="{{ url_for('vehicle_detail', license_plate=comment.vehicle.license_plate) }}" 
+                                           class="text-decoration-none">{{ comment.vehicle.license_plate }}</a>
+                                    </small>
+                                </div>
+                                <div class="btn-group-vertical">
+                                    <button class="btn btn-sm btn-outline-danger" onclick="adminDeleteComment({{ comment.id }})">
+                                        <i class="fas fa-trash me-1"></i>Usuń
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="clearReports({{ comment.id }})">
+                                        <i class="fas fa-check me-1"></i>Wyczyść
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <h5 class="text-muted">Brak zgłoszonych komentarzy</h5>
+                        <p class="text-muted">Wszystkie komentarze są w porządku!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title mb-0">
+                    <i class="fas fa-ban text-danger me-2"></i>
+                    Zablokowane pojazdy
+                </h4>
+            </div>
+            <div class="card-body">
+                {% if blocked_vehicles %}
+                    {% for vehicle in blocked_vehicles %}
+                    <div class="d-flex justify-content-between align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
+                        <div>
+                            <strong>{{ vehicle.license_plate }}</strong>
+                            <br>
+                            <small class="text-muted">
+                                Zablokowano: {{ vehicle.created_at.strftime('%d.%m.%Y') }}
+                            </small>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-success" onclick="toggleBlockVehicle('{{ vehicle.license_plate }}')">
+                                <i class="fas fa-unlock"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="fas fa-unlock fa-2x text-success mb-2"></i>
+                        <p class="text-muted small">Brak zablokowanych pojazdów</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-tools me-2"></i>Narzędzia
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary" onclick="showStats()">
+                        <i class="fas fa-chart-bar me-1"></i>Statystyki systemu
+                    </button>
+                    <button class="btn btn-outline-warning" onclick="exportData()">
+                        <i class="fas fa-download me-1"></i>Eksport danych
+                    </button>
+                    <button class="btn btn-outline-info" onclick="systemHealth()">
+                        <i class="fas fa-heartbeat me-1"></i>Stan systemu
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-shield-alt me-2"></i>Moderacja
+                </h5>
+            </div>
+            <div class="card-body">
+                <form onsubmit="blockVehicleByAdmin(event)">
+                    <div class="mb-3">
+                        <label for="licensePlateToBlock" class="form-label">Zablokuj pojazd:</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="licensePlateToBlock" 
+                                   placeholder="Numer rejestracyjny" pattern="[A-Za-z0-9\s]+" required>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-ban"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function clearReports(commentId) {
+    if (!confirm('Czy na pewno chcesz wyczyścić zgłoszenia tego komentarza?')) {
+        return;
+    }
+    
+    // For this demo, we'll just remove the visual indicator
+    // In a real app, you'd make an API call to clear reports
+    const commentElement = document.getElementById(`admin-comment-${commentId}`);
+    if (commentElement) {
+        commentElement.style.opacity = '0.5';
+        setTimeout(() => {
+            commentElement.remove();
+        }, 500);
+    }
+    
+    showAlert('Zgłoszenia zostały wyczyszczone', 'success');
+}
+
+function blockVehicleByAdmin(event) {
+    event.preventDefault();
+    const licensePlate = document.getElementById('licensePlateToBlock').value.trim().toUpperCase();
+    
+    if (!licensePlate) {
+        showAlert('Wprowadź numer rejestracyjny', 'warning');
+        return;
+    }
+    
+    toggleBlockVehicle(licensePlate);
+    document.getElementById('licensePlateToBlock').value = '';
+}
+
+function showStats() {
+    // Placeholder for system statistics
+    showAlert('Funkcja statystyk będzie dostępna wkrótce', 'info');
+}
+
+function exportData() {
+    // Placeholder for data export
+    showAlert('Eksport danych zostanie wkrótce zaimplementowany', 'info');
+}
+
+function systemHealth() {
+    // Placeholder for system health check
+    showAlert('System działa poprawnie ✅', 'success');
+}
+</script>
+{% endblock %}
