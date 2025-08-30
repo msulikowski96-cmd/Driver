@@ -34,6 +34,15 @@ db.init_app(app)
 # Import models after db initialization
 from models import User, Vehicle, Rating, Comment, Report
 
+# Register context processor for templates
+@app.context_processor
+def inject_auth_functions():
+    return {
+        'get_current_user': get_current_user,
+        'is_logged_in': is_logged_in,
+        'is_admin': is_admin
+    }
+
 # Helper functions
 def is_logged_in():
     return 'user_id' in session
@@ -60,9 +69,10 @@ def index():
     seen_plates = set()
     
     for rating in recent_ratings:
-        if rating.vehicle.license_plate not in seen_plates:
-            recent_vehicles.append(rating.vehicle)
-            seen_plates.add(rating.vehicle.license_plate)
+        vehicle = Vehicle.query.get(rating.vehicle_id)
+        if vehicle and vehicle.license_plate not in seen_plates:
+            recent_vehicles.append(vehicle)
+            seen_plates.add(vehicle.license_plate)
             if len(recent_vehicles) >= 5:
                 break
     
@@ -71,8 +81,12 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
+        
+        if not username or not password:
+            flash('Wprowadź login i hasło!', 'danger')
+            return render_template('login.html')
         
         user = User.query.filter_by(username=username).first()
         
@@ -88,9 +102,13 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        
+        if not username or not email or not password:
+            flash('Wszystkie pola są wymagane!', 'danger')
+            return render_template('register.html')
         
         if User.query.filter_by(username=username).first():
             flash('Nazwa użytkownika jest już zajęta!', 'danger')
@@ -100,11 +118,10 @@ def register():
             flash('Email jest już zarejestrowany!', 'danger')
             return render_template('register.html')
         
-        user = User(
-            username=username,
-            email=email,
-            password_hash=generate_password_hash(password)
-        )
+        user = User()
+        user.username = username
+        user.email = email
+        user.password_hash = generate_password_hash(password)
         
         db.session.add(user)
         db.session.commit()
@@ -231,7 +248,8 @@ def api_rate():
     # Get or create vehicle
     vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
     if not vehicle:
-        vehicle = Vehicle(license_plate=license_plate)
+        vehicle = Vehicle()
+        vehicle.license_plate = license_plate
         db.session.add(vehicle)
         db.session.flush()
     
@@ -248,11 +266,10 @@ def api_rate():
         existing_rating.rating = rating_value
         existing_rating.created_at = datetime.utcnow()
     else:
-        rating = Rating(
-            vehicle_id=vehicle.id,
-            user_id=session['user_id'],
-            rating=rating_value
-        )
+        rating = Rating()
+        rating.vehicle_id = vehicle.id
+        rating.user_id = session['user_id']
+        rating.rating = rating_value
         db.session.add(rating)
     
     db.session.commit()
@@ -281,11 +298,10 @@ def api_comment():
     if vehicle.is_blocked:
         return jsonify({'error': 'Ten pojazd został zablokowany'}), 403
     
-    comment = Comment(
-        vehicle_id=vehicle.id,
-        user_id=session['user_id'],
-        content=comment_text
-    )
+    comment = Comment()
+    comment.vehicle_id = vehicle.id
+    comment.user_id = session['user_id']
+    comment.content = comment_text
     
     db.session.add(comment)
     db.session.commit()
@@ -313,10 +329,9 @@ def api_report_comment():
     if existing_report:
         return jsonify({'error': 'Już zgłosiłeś ten komentarz'}), 400
     
-    report = Report(
-        comment_id=comment_id,
-        user_id=session['user_id']
-    )
+    report = Report()
+    report.comment_id = comment_id
+    report.user_id = session['user_id']
     
     comment.reports += 1
     
@@ -382,15 +397,14 @@ with app.app_context():
     db.create_all()
     
     # Create admin user if doesn't exist
-    admin = User.query.filter_by(username='admin').first()
-    if not admin:
-        admin = User(
-            username='admin',
-            email='admin@example.com',
-            password_hash=generate_password_hash('admin123'),
-            is_admin=True
-        )
-        db.session.add(admin)
+    admin_user = User.query.filter_by(username='admin').first()
+    if not admin_user:
+        admin_user = User()
+        admin_user.username = 'admin'
+        admin_user.email = 'admin@example.com'
+        admin_user.password_hash = generate_password_hash('admin123')
+        admin_user.is_admin = True
+        db.session.add(admin_user)
         db.session.commit()
         print("Admin user created: username=admin, password=admin123")
 

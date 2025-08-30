@@ -138,12 +138,11 @@ def create_user(username, email, password, is_admin=False):
         raise ValueError("Email jest już zarejestrowany")
     
     # Create new user
-    user = User(
-        username=username,
-        email=email,
-        password_hash=generate_password_hash(password),
-        is_admin=is_admin
-    )
+    user = User()
+    user.username = username
+    user.email = email
+    user.password_hash = generate_password_hash(password)
+    user.is_admin = is_admin
     
     try:
         db.session.add(user)
