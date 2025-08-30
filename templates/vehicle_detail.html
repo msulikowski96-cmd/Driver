@@ -219,4 +219,83 @@
         </div>
     </div>
 </div>
+
+<script>
+let isFavorite = false;
+const licensePlate = '{{ vehicle.license_plate }}';
+
+// Check favorite status when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    {% if session.user_id %}
+    checkFavoriteStatus();
+    {% endif %}
+});
+
+async function checkFavoriteStatus() {
+    try {
+        const response = await fetch(`/api/favorite/${licensePlate}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            isFavorite = data.is_favorite;
+            updateFavoriteButton();
+        }
+    } catch (error) {
+        console.error('Error checking favorite status:', error);
+    }
+}
+
+function updateFavoriteButton() {
+    const btn = document.getElementById('favoriteBtn');
+    const text = document.getElementById('favoriteText');
+    const icon = btn.querySelector('i');
+    
+    if (btn) {
+        btn.style.display = 'inline-block';
+        
+        if (isFavorite) {
+            btn.className = 'btn btn-sm btn-warning ms-2';
+            icon.className = 'fas fa-heart me-1';
+            text.textContent = 'Usuń z ulubionych';
+        } else {
+            btn.className = 'btn btn-sm btn-outline-warning ms-2';
+            icon.className = 'fas fa-heart me-1';
+            text.textContent = 'Dodaj do ulubionych';
+        }
+    }
+}
+
+async function toggleFavorite() {
+    try {
+        showLoading(true);
+        
+        const method = isFavorite ? 'DELETE' : 'POST';
+        const response = await fetch('/api/favorite', {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                license_plate: licensePlate,
+                notes: '' // Empty notes for now
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            isFavorite = !isFavorite;
+            updateFavoriteButton();
+            showAlert(data.message, 'success');
+        } else {
+            showAlert(data.error || 'Wystąpił błąd', 'danger');
+        }
+    } catch (error) {
+        console.error('Error toggling favorite:', error);
+        showAlert('Wystąpił błąd podczas operacji', 'danger');
+    } finally {
+        showLoading(false);
+    }
+}
+</script>
 {% endblock %}
