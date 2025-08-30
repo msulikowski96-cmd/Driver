@@ -1,8 +1,5 @@
-{% extends "base.html" %}
-
-{% block title %}Logowanie - Oceny Kierowców{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Logowanie - Oceny Kierowców{%
+endblock %} {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-6 col-lg-4">
         <div class="card">
@@ -14,25 +11,39 @@
             <div class="card-body">
                 <form method="POST" id="loginForm">
                     <div class="mb-3">
-                        <label for="username" class="form-label">Nazwa użytkownika</label>
+                        <label for="username" class="form-label"
+                            >Nazwa użytkownika</label
+                        >
                         <div class="input-group">
                             <span class="input-group-text">
                                 <i class="fas fa-user"></i>
                             </span>
-                            <input type="text" class="form-control" id="username" name="username" required>
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="username"
+                                name="username"
+                                required
+                            />
                         </div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="password" class="form-label">Hasło</label>
                         <div class="input-group">
                             <span class="input-group-text">
                                 <i class="fas fa-lock"></i>
                             </span>
-                            <input type="password" class="form-control" id="password" name="password" required>
+                            <input
+                                type="password"
+                                class="form-control"
+                                id="password"
+                                name="password"
+                                required
+                            />
                         </div>
                     </div>
-                    
+
                     <div class="d-grid">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-sign-in-alt me-1"></i>Zaloguj się
@@ -42,21 +53,24 @@
             </div>
             <div class="card-footer text-center">
                 <small class="text-muted">
-                    Nie masz konta? 
-                    <a href="{{ url_for('register') }}" class="text-decoration-none">Zarejestruj się</a>
+                    Nie masz konta?
+                    <a
+                        href="{{ url_for('register') }}"
+                        class="text-decoration-none"
+                        >Zarejestruj się</a
+                    >
                 </small>
             </div>
         </div>
-        
+
         <div class="card mt-3">
             <div class="card-body">
                 <h6 class="card-title">
-                    <i class="fas fa-info-circle me-2 text-info"></i>Konto demonstracyjne
+                    <i class="fas fa-info-circle me-2 text-info"> </i>
                 </h6>
                 <p class="card-text small">
-                    <strong>Administrator:</strong><br>
-                    Login: admin<br>
-                    Hasło: admin123
+                    <strong>zaloguj sie aby skorzystać z serwisu</strong><br />
+                    <br />
                 </p>
             </div>
         </div>
