@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}Mój Profil - Oceny Kierowców{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title mb-0">
+                    <i class="fas fa-user-circle me-2"></i>Profil użytkownika: {{ user.username }}
+                </h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Email:</strong> {{ user.email }}</p>
+                        <p><strong>Data rejestracji:</strong> {{ user.created_at.strftime('%d.%m.%Y') }}</p>
+                        {% if user.is_admin %}
+                        <p><span class="badge bg-danger">Administrator</span></p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-end">
+                            <h4 class="text-primary">Poziom reputacji: {{ user_stats.reputation_score }}</h4>
+                            <div class="d-flex justify-content-end gap-3">
+                                <div class="text-center">
+                                    <div class="badge bg-primary fs-6">{{ user_stats.total_ratings }}</div>
+                                    <div class="small">Ocen</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="badge bg-success fs-6">{{ user_stats.total_comments }}</div>
+                                    <div class="small">Komentarzy</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="badge bg-warning fs-6">{{ user_stats.helpful_votes }}</div>
+                                    <div class="small">Przydatnych głosów</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-plus me-2"></i>Szybkie akcje
+                </h5>
+            </div>
+            <div class="card-body">
+                <form onsubmit="addToFavorites(event)" class="mb-3">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" id="favoriteInput" 
+                                   placeholder="Numer rejestracyjny" pattern="[A-Za-z0-9\s]+" required>
+                        </div>
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="favoriteNotes" 
+                                   placeholder="Notatki (opcjonalne)" maxlength="200">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-warning w-100">
+                                <i class="fas fa-heart me-1"></i>Dodaj do ulubionych
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Favorites -->
+<div class="row mt-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-heart text-danger me-2"></i>Ulubione pojazdy ({{ user_favorites|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if user_favorites %}
+                    {% for favorite in user_favorites %}
+                    <div class="card mb-2 border-warning" id="favorite-{{ favorite.vehicle.license_plate }}">
+                        <div class="card-body py-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <a href="{{ url_for('vehicle_detail', license_plate=favorite.vehicle.license_plate) }}" 
+                                           class="text-decoration-none">{{ favorite.vehicle.license_plate }}</a>
+                                    </h6>
+                                    {% if favorite.notes %}
+                                    <small class="text-muted">{{ favorite.notes }}</small>
+                                    {% endif %}
+                                    <br>
+                                    <small class="text-muted">Dodano: {{ favorite.created_at.strftime('%d.%m.%Y') }}</small>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-danger" 
+                                            onclick="removeFromFavorites('{{ favorite.vehicle.license_plate }}')">
+                                        <i class="fas fa-heart-broken"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-heart fa-3x text-muted mb-3"></i>
+                        <h6 class="text-muted">Brak ulubionych pojazdów</h6>
+                        <p class="text-muted small">Dodaj pojazdy do ulubionych aby łatwo je obserwować!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>Ostatnie oceny
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if user_ratings %}
+                    {% for rating in user_ratings %}
+                    <div class="d-flex justify-content-between align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
+                        <div>
+                            <strong>{{ rating.vehicle.license_plate }}</strong>
+                            <div class="text-warning">
+                                {% for i in range(rating.rating) %}★{% endfor %}
+                                {% for i in range(5 - rating.rating) %}☆{% endfor %}
+                            </div>
+                        </div>
+                        <small class="text-muted">{{ rating.created_at.strftime('%d.%m.%Y') }}</small>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-star fa-2x text-muted mb-2"></i>
+                        <p class="text-muted">Brak ocen</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-comments me-2"></i>Ostatnie komentarze
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if user_comments %}
+                    {% for comment in user_comments %}
+                    <div class="mb-3 {% if not loop.last %}border-bottom pb-2{% endif %}">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ comment.vehicle.license_plate }}</strong>
+                            <small class="text-muted">{{ comment.created_at.strftime('%d.%m.%Y') }}</small>
+                        </div>
+                        <p class="mb-1 small">{{ comment.content[:100] }}{% if comment.content|length > 100 %}...{% endif %}</p>
+                        {% if comment.helpful_votes > 0 %}
+                        <span class="badge bg-success small">{{ comment.helpful_votes }} pomocnych</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-comments fa-2x text-muted mb-2"></i>
+                        <p class="text-muted">Brak komentarzy</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function addToFavorites(event) {
+    event.preventDefault();
+    
+    const licensePlate = document.getElementById('favoriteInput').value.trim().toUpperCase();
+    const notes = document.getElementById('favoriteNotes').value.trim();
+    
+    if (!licensePlate) {
+        showAlert('Wprowadź numer rejestracyjny', 'warning');
+        return;
+    }
+    
+    if (!validateLicensePlate(licensePlate)) {
+        showAlert('Nieprawidłowy format numeru rejestracyjnego', 'warning');
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/favorite', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                license_plate: licensePlate,
+                notes: notes
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showAlert(data.message, 'success');
+            // Clear form
+            document.getElementById('favoriteInput').value = '';
+            document.getElementById('favoriteNotes').value = '';
+            // Reload page to show updated favorites
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showAlert(data.error || 'Wystąpił błąd', 'danger');
+        }
+    } catch (error) {
+        console.error('Error adding to favorites:', error);
+        showAlert('Wystąpił błąd podczas dodawania do ulubionych', 'danger');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function removeFromFavorites(licensePlate) {
+    if (!confirm(`Czy na pewno chcesz usunąć ${licensePlate} z ulubionych?`)) {
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/favorite', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                license_plate: licensePlate
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showAlert(data.message, 'success');
+            // Remove from DOM
+            const favoriteElement = document.getElementById(`favorite-${licensePlate}`);
+            if (favoriteElement) {
+                favoriteElement.remove();
+            }
+        } else {
+            showAlert(data.error || 'Wystąpił błąd', 'danger');
+        }
+    } catch (error) {
+        console.error('Error removing from favorites:', error);
+        showAlert('Wystąpił błąd podczas usuwania z ulubionych', 'danger');
+    } finally {
+        showLoading(false);
+    }
+}
+</script>
+{% endblock %}

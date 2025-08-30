@@ -52,7 +52,7 @@ else:
         "pool_pre_ping": True,
     }
 
-from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote
+from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
 
 # Initialize the app with the extension
 db.init_app(app)
@@ -753,6 +753,118 @@ def api_vote_comment():
         comment_author_stats.update_statistics()
 
     return jsonify({'success': True, 'message': 'Głos został zapisany'})
+
+@app.route('/profile')
+def profile():
+    if not is_logged_in():
+        flash('Musisz być zalogowany, aby zobaczyć profil!', 'warning')
+        return redirect(url_for('login'))
+    
+    user = get_current_user()
+    if not user:
+        flash('Błąd sesji użytkownika. Zaloguj się ponownie.', 'danger')
+        return redirect(url_for('login'))
+    
+    # Get user's activity
+    user_ratings = Rating.query.filter_by(user_id=user.id).order_by(Rating.created_at.desc()).limit(10).all()
+    user_comments = Comment.query.filter_by(user_id=user.id).order_by(Comment.created_at.desc()).limit(10).all()
+    user_favorites = Favorite.query.filter_by(user_id=user.id).order_by(Favorite.created_at.desc()).all()
+    
+    # Get user statistics
+    user_stats = UserStatistics.query.filter_by(user_id=user.id).first()
+    if not user_stats:
+        user_stats = UserStatistics(user_id=user.id)
+        db.session.add(user_stats)
+        db.session.commit()
+        user_stats.update_statistics()
+    
+    return render_template('profile.html', 
+                         user=user, 
+                         user_ratings=user_ratings,
+                         user_comments=user_comments,
+                         user_favorites=user_favorites,
+                         user_stats=user_stats)
+
+@app.route('/api/favorite', methods=['POST'])
+def api_add_favorite():
+    if not is_logged_in():
+        return jsonify({'error': 'Musisz być zalogowany'}), 401
+
+    data = request.get_json()
+    license_plate = data.get('license_plate', '').strip().upper()
+    notes = data.get('notes', '').strip()
+
+    if not validate_license_plate(license_plate):
+        return jsonify({'error': 'Nieprawidłowy numer rejestracyjny'}), 400
+
+    # Get or create vehicle
+    vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
+    if not vehicle:
+        vehicle = Vehicle()
+        vehicle.license_plate = license_plate
+        db.session.add(vehicle)
+        db.session.flush()
+
+    # Check if already favorited
+    existing_favorite = Favorite.query.filter_by(
+        user_id=session['user_id'],
+        vehicle_id=vehicle.id
+    ).first()
+
+    if existing_favorite:
+        return jsonify({'error': 'Ten pojazd jest już w Twoich ulubionych'}), 400
+
+    # Create favorite
+    favorite = Favorite()
+    favorite.user_id = session['user_id']
+    favorite.vehicle_id = vehicle.id
+    favorite.notes = notes
+
+    db.session.add(favorite)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Pojazd został dodany do ulubionych'})
+
+@app.route('/api/favorite', methods=['DELETE'])
+def api_remove_favorite():
+    if not is_logged_in():
+        return jsonify({'error': 'Musisz być zalogowany'}), 401
+
+    data = request.get_json()
+    license_plate = data.get('license_plate', '').strip().upper()
+
+    vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
+    if not vehicle:
+        return jsonify({'error': 'Pojazd nie został znaleziony'}), 404
+
+    favorite = Favorite.query.filter_by(
+        user_id=session['user_id'],
+        vehicle_id=vehicle.id
+    ).first()
+
+    if not favorite:
+        return jsonify({'error': 'Ten pojazd nie jest w Twoich ulubionych'}), 404
+
+    db.session.delete(favorite)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Pojazd został usunięty z ulubionych'})
+
+@app.route('/api/favorite/<license_plate>', methods=['GET'])
+def api_check_favorite(license_plate):
+    if not is_logged_in():
+        return jsonify({'is_favorite': False})
+
+    vehicle = Vehicle.query.filter_by(license_plate=license_plate.upper()).first()
+    if not vehicle:
+        return jsonify({'is_favorite': False})
+
+    favorite = Favorite.query.filter_by(
+        user_id=session['user_id'],
+        vehicle_id=vehicle.id
+    ).first()
+
+    return jsonify({'is_favorite': favorite is not None})
 
 
 def validate_license_plate(plate):

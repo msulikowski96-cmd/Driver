@@ -123,3 +123,16 @@ class CommentVote(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     __table_args__ = (db.UniqueConstraint('comment_id', 'user_id', name='unique_user_comment_vote'),)
+
+class Favorite(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    vehicle_id = db.Column(db.Integer, db.ForeignKey('vehicle.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    notes = db.Column(db.Text)  # User's personal notes about this vehicle
+    
+    # Relationships
+    user = db.relationship('User', backref=db.backref('favorites', lazy='dynamic'))
+    vehicle = db.relationship('Vehicle', backref=db.backref('favorited_by', lazy='dynamic'))
+    
+    __table_args__ = (db.UniqueConstraint('user_id', 'vehicle_id', name='unique_user_vehicle_favorite'),)
