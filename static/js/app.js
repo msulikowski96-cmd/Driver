@@ -3,12 +3,137 @@
 // Global variables
 let currentRating = 0;
 
+// Submit comment function
+function submitComment(licensePlate) {
+    console.log('submitComment called for:', licensePlate);
+    const commentTextarea = document.querySelector(`#comment-${licensePlate.replace(/\s+/g, '')}`);
+    const commentText = commentTextarea ? commentTextarea.value.trim() : '';
+    
+    if (!commentText) {
+        alert('Komentarz nie może być pusty!');
+        return;
+    }
+
+    fetch('/api/comment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            license_plate: licensePlate,
+            comment: commentText
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Wystąpił błąd');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Wystąpił błąd podczas dodawania komentarza');
+    });
+}
+
+// Vote comment function
+function voteComment(commentId, voteType) {
+    fetch('/api/vote_comment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            comment_id: commentId,
+            vote_type: voteType
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Wystąpił błąd');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Wystąpił błąd podczas głosowania');
+    });
+}
+
 // Initialize application
 document.addEventListener('DOMContentLoaded', function() {
     initializeStarRatings();
     initializeFormValidation();
     addEventListeners();
 });
+
+// Add new vehicle function
+function addNewVehicle(licensePlate) {
+    window.location.href = `/vehicle/${licensePlate}`;
+}
+
+// Report comment function
+function reportComment(commentId) {
+    if (!confirm('Czy na pewno chcesz zgłosić ten komentarz?')) {
+        return;
+    }
+
+    fetch('/api/report_comment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            comment_id: commentId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert(data.error || 'Wystąpił błąd');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Wystąpił błąd podczas zgłaszania komentarza');
+    });
+}
+
+// Delete comment function
+function deleteMyComment(commentId) {
+    if (!confirm('Czy na pewno chcesz usunąć swój komentarz?')) {
+        return;
+    }
+
+    fetch('/api/delete_my_comment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            comment_id: commentId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Wystąpił błąd');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Wystąpił błąd podczas usuwania komentarza');
+    });
+}
 
 // Star rating functionality
 function initializeStarRatings() {
