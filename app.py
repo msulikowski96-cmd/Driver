@@ -8,6 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import re
 
+
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -28,11 +29,11 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
 }
 
+
+from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote
+
 # Initialize the app with the extension
 db.init_app(app)
-
-# Import models after db initialization
-from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote
 
 # Helper functions for authentication
 def is_logged_in():
