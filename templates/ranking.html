@@ -132,7 +132,9 @@
                         </h5>
                     </div>
                     <div class="card-body">
-                        {% for item in vehicles_with_ratings|reverse|list[:10] if sort_order == 'best' %}
+                        {% if sort_order == 'best' %}
+                            {% set worst_vehicles = vehicles_with_ratings|reverse|list %}
+                            {% for item in worst_vehicles[:10] %}
                         <div class="d-flex justify-content-between align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
                             <div>
                                 <span class="fw-bold">{{ loop.index }}. {{ item.vehicle.license_plate }}</span>
@@ -149,7 +151,8 @@
                                 <small class="text-muted">{{ "%.2f"|format(item.avg_rating) }} ({{ item.rating_count }})</small>
                             </div>
                         </div>
-                        {% endfor %}
+                            {% endfor %}
+                        {% endif %}
                     </div>
                 </div>
             </div>
