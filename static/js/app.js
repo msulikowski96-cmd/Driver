@@ -1,19 +1,101 @@
+
 // Driver Rating Application JavaScript
 
-// Global variables
-let currentRating = 0;
+document.addEventListener('DOMContentLoaded', function() {
+    initializeStarRatings();
+    initializeFormValidation();
+    initializeSearch();
+});
 
-// Submit comment function
+function initializeStarRatings() {
+    console.log('Initializing star ratings...');
+    const ratingContainers = document.querySelectorAll('.star-rating');
+    
+    ratingContainers.forEach(container => {
+        const licensePlate = container.dataset.licensePlate;
+        const currentRating = parseInt(container.dataset.currentRating) || 0;
+        const stars = container.querySelectorAll('.star');
+        
+        console.log(`Found rating element for ${licensePlate} with ${currentRating} stars`);
+        
+        // Set initial rating display
+        updateStarDisplay(stars, currentRating);
+        
+        stars.forEach((star, index) => {
+            star.addEventListener('click', function() {
+                const rating = index + 1;
+                console.log(`Star ${rating} clicked for ${licensePlate}`);
+                submitRating(licensePlate, rating);
+                updateStarDisplay(stars, rating);
+            });
+            
+            star.addEventListener('mouseenter', function() {
+                updateStarDisplay(stars, index + 1, true);
+            });
+        });
+        
+        container.addEventListener('mouseleave', function() {
+            updateStarDisplay(stars, currentRating);
+        });
+    });
+}
+
+function updateStarDisplay(stars, rating, isHover = false) {
+    stars.forEach((star, index) => {
+        star.classList.remove('filled', 'hover');
+        if (index < rating) {
+            star.classList.add(isHover ? 'hover' : 'filled');
+        }
+    });
+}
+
+function submitRating(licensePlate, rating) {
+    showLoading(true);
+    
+    fetch('/api/rate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            license_plate: licensePlate,
+            rating: rating
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message || 'Ocena została zapisana');
+            // Update the current rating in the container
+            const container = document.querySelector(`[data-license-plate="${licensePlate}"]`);
+            if (container) {
+                container.dataset.currentRating = rating;
+            }
+        } else {
+            showAlert('danger', data.error || 'Wystąpił błąd podczas zapisywania oceny');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
+    })
+    .finally(() => {
+        showLoading(false);
+    });
+}
+
 function submitComment(licensePlate) {
     console.log('submitComment called for:', licensePlate);
-    const commentTextarea = document.querySelector(`#comment-${licensePlate.replace(/\s+/g, '')}`);
+    const commentTextarea = document.querySelector(`#comment-${licensePlate.replace(/\s+/g, '-')}`);
     const commentText = commentTextarea ? commentTextarea.value.trim() : '';
     
     if (!commentText) {
-        alert('Komentarz nie może być pusty!');
+        showAlert('warning', 'Komentarz nie może być pusty');
         return;
     }
-
+    
+    showLoading(true);
+    
     fetch('/api/comment', {
         method: 'POST',
         headers: {
@@ -27,19 +109,28 @@ function submitComment(licensePlate) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            location.reload();
+            showAlert('success', data.message || 'Komentarz został dodany');
+            commentTextarea.value = '';
+            // Reload the page to show the new comment
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
         } else {
-            alert(data.error || 'Wystąpił błąd');
+            showAlert('danger', data.error || 'Wystąpił błąd podczas dodawania komentarza');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Wystąpił błąd podczas dodawania komentarza');
+        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
+    })
+    .finally(() => {
+        showLoading(false);
     });
 }
 
-// Vote comment function
 function voteComment(commentId, voteType) {
+    showLoading(true);
+    
     fetch('/api/vote_comment', {
         method: 'POST',
         headers: {
@@ -53,35 +144,31 @@ function voteComment(commentId, voteType) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            location.reload();
+            showAlert('success', data.message || 'Głos został zapisany');
+            // Reload to update vote counts
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
         } else {
-            alert(data.error || 'Wystąpił błąd');
+            showAlert('danger', data.error || 'Wystąpił błąd podczas głosowania');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Wystąpił błąd podczas głosowania');
+        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
+    })
+    .finally(() => {
+        showLoading(false);
     });
 }
 
-// Initialize application
-document.addEventListener('DOMContentLoaded', function() {
-    initializeStarRatings();
-    initializeFormValidation();
-    addEventListeners();
-});
-
-// Add new vehicle function
-function addNewVehicle(licensePlate) {
-    window.location.href = `/vehicle/${licensePlate}`;
-}
-
-// Report comment function
 function reportComment(commentId) {
     if (!confirm('Czy na pewno chcesz zgłosić ten komentarz?')) {
         return;
     }
-
+    
+    showLoading(true);
+    
     fetch('/api/report_comment', {
         method: 'POST',
         headers: {
@@ -94,24 +181,27 @@ function reportComment(commentId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(data.message);
-            location.reload();
+            showAlert('success', data.message || 'Komentarz został zgłoszony');
         } else {
-            alert(data.error || 'Wystąpił błąd');
+            showAlert('danger', data.error || 'Wystąpił błąd podczas zgłaszania');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Wystąpił błąd podczas zgłaszania komentarza');
+        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
+    })
+    .finally(() => {
+        showLoading(false);
     });
 }
 
-// Delete comment function
 function deleteMyComment(commentId) {
     if (!confirm('Czy na pewno chcesz usunąć swój komentarz?')) {
         return;
     }
-
+    
+    showLoading(true);
+    
     fetch('/api/delete_my_comment', {
         method: 'POST',
         headers: {
@@ -124,374 +214,128 @@ function deleteMyComment(commentId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            location.reload();
+            showAlert('success', data.message || 'Komentarz został usunięty');
+            // Remove the comment element from DOM
+            const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`);
+            if (commentElement) {
+                commentElement.remove();
+            }
         } else {
-            alert(data.error || 'Wystąpił błąd');
+            showAlert('danger', data.error || 'Wystąpił błąd podczas usuwania');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Wystąpił błąd podczas usuwania komentarza');
+        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
+    })
+    .finally(() => {
+        showLoading(false);
     });
 }
 
-// Star rating functionality
-function initializeStarRatings() {
-    console.log('Initializing star ratings...');
-    document.querySelectorAll('.star-rating-interactive').forEach(ratingElement => {
-        const stars = ratingElement.querySelectorAll('.star-interactive');
-        const licensePlate = ratingElement.dataset.licensePlate;
-
-        console.log(`Found rating element for ${licensePlate} with ${stars.length} stars`);
-
-        stars.forEach((star, index) => {
-            star.style.cursor = 'pointer';
-            star.addEventListener('mouseenter', () => highlightStars(stars, index + 1));
-            star.addEventListener('mouseleave', () => resetStars(stars, getCurrentRating(ratingElement)));
-            star.addEventListener('click', () => {
-                console.log(`Star ${index + 1} clicked for ${licensePlate}`);
-                setRating(stars, index + 1, licensePlate, ratingElement);
-            });
-        });
-    });
-}
-
-function highlightStars(stars, rating) {
-    stars.forEach((star, index) => {
-        if (index < rating) {
-            star.classList.remove('text-muted');
-            star.classList.add('text-warning');
-        } else {
-            star.classList.remove('text-warning');
-            star.classList.add('text-muted');
-        }
-    });
-}
-
-function resetStars(stars, rating) {
-    highlightStars(stars, rating);
-}
-
-function getCurrentRating(ratingElement) {
-    const filledStars = ratingElement.querySelectorAll('.star-interactive.text-warning').length;
-    return filledStars;
-}
-
-function setRating(stars, rating, licensePlate, ratingElement) {
-    currentRating = rating;
-    highlightStars(stars, rating);
-
-    // Send rating to server
-    submitRating(licensePlate, rating);
-}
-
-// API calls
-async function submitRating(licensePlate, rating) {
-    try {
-        showLoading(true);
-        const response = await fetch('/api/rate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                license_plate: licensePlate,
-                rating: rating
-            })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            showAlert(data.message, 'success');
-            // Refresh page after a short delay to show updated rating
+function toggleVehicleBlock(licensePlate) {
+    if (!confirm('Czy na pewno chcesz zmienić status blokady tego pojazdu?')) {
+        return;
+    }
+    
+    showLoading(true);
+    
+    fetch('/api/admin/block_vehicle', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            license_plate: licensePlate
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message || 'Status pojazdu został zmieniony');
             setTimeout(() => {
                 window.location.reload();
-            }, 1500);
+            }, 1000);
         } else {
-            showAlert(data.error, 'danger');
+            showAlert('danger', data.error || 'Wystąpił błąd podczas zmiany statusu');
         }
-    } catch (error) {
-        console.error('Error submitting rating:', error);
-        showAlert('Wystąpił błąd podczas zapisywania oceny', 'danger');
-    } finally {
+    })
+    .catch(error => {
+        console.error('Error toggling vehicle block:', error);
+        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
+    })
+    .finally(() => {
         showLoading(false);
-    }
+    });
 }
 
-async function submitComment(licensePlate) {
-    console.log('submitComment called for:', licensePlate);
-    const commentText = document.getElementById('comment').value.trim();
-
-    if (!commentText) {
-        showAlert('Komentarz nie może być pusty', 'warning');
-        return;
-    }
-
-    console.log('Submitting comment:', commentText);
-
-    try {
-        showLoading(true);
-        const response = await fetch('/api/comment', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                license_plate: licensePlate,
-                comment: commentText
-            })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            showAlert(data.message, 'success');
-            document.getElementById('comment').value = '';
-            // Refresh page to show new comment
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-        } else {
-            showAlert(data.error, 'danger');
-        }
-    } catch (error) {
-        console.error('Error submitting comment:', error);
-        showAlert('Wystąpił błąd podczas dodawania komentarza', 'danger');
-    } finally {
-        showLoading(false);
-    }
-}
-
-async function reportComment(commentId) {
-    if (!confirm('Czy na pewno chcesz zgłosić ten komentarz jako nieodpowiedni?')) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/report_comment', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                comment_id: commentId
-            })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            showAlert(data.message, 'success');
-            // Disable the report button
-            const reportBtn = document.querySelector(`button[onclick="reportComment(${commentId})"]`);
-            if (reportBtn) {
-                reportBtn.disabled = true;
-                reportBtn.innerHTML = '<i class="fas fa-check"></i> Zgłoszono';
-                reportBtn.classList.remove('btn-outline-warning');
-                reportBtn.classList.add('btn-secondary');
-            }
-        } else {
-            showAlert(data.error, 'danger');
-        }
-    } catch (error) {
-        console.error('Error reporting comment:', error);
-        showAlert('Wystąpił błąd podczas zgłaszania komentarza', 'danger');
-    }
-}
-
-async function deleteMyComment(commentId) {
-    if (!confirm('Czy na pewno chcesz usunąć swój komentarz?')) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/delete_my_comment', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                comment_id: commentId
-            })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            showAlert(data.message, 'success');
-            // Remove comment from DOM
-            const commentElement = document.getElementById(`comment-${commentId}`);
-            if (commentElement) {
-                commentElement.style.opacity = '0.5';
-                setTimeout(() => {
-                    commentElement.remove();
-                }, 500);
-            }
-        } else {
-            showAlert(data.error, 'danger');
-        }
-    } catch (error) {
-        console.error('Error deleting comment:', error);
-        showAlert('Wystąpił błąd podczas usuwania komentarza', 'danger');
-    }
-}
-
-// Admin functions
-async function adminDeleteComment(commentId) {
+function deleteComment(commentId) {
     if (!confirm('Czy na pewno chcesz usunąć ten komentarz?')) {
         return;
     }
-
-    try {
-        const response = await fetch('/api/admin/delete_comment', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                comment_id: commentId
-            })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            showAlert(data.message, 'success');
-            // Remove comment from DOM
-            const commentElement = document.getElementById(`comment-${commentId}`) || 
-                                 document.getElementById(`admin-comment-${commentId}`);
+    
+    showLoading(true);
+    
+    fetch('/api/admin/delete_comment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            comment_id: commentId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message || 'Komentarz został usunięty');
+            // Remove the comment element from DOM
+            const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`);
             if (commentElement) {
-                commentElement.style.opacity = '0.5';
-                setTimeout(() => {
-                    commentElement.remove();
-                }, 500);
+                commentElement.remove();
             }
         } else {
-            showAlert(data.error, 'danger');
+            showAlert('danger', data.error || 'Wystąpił błąd podczas usuwania');
         }
-    } catch (error) {
-        console.error('Error deleting comment:', error);
-        showAlert('Wystąpił błąd podczas usuwania komentarza', 'danger');
-    }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
+    })
+    .finally(() => {
+        showLoading(false);
+    });
 }
 
-async function toggleBlockVehicle(licensePlate) {
-    if (!confirm(`Czy na pewno chcesz zmienić status blokady pojazdu ${licensePlate}?`)) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/admin/block_vehicle', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                license_plate: licensePlate
-            })
+function initializeSearch() {
+    const searchInput = document.querySelector('#search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            console.log('Search query:', query);
+            // You can add real-time search functionality here
         });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            showAlert(data.message, 'success');
-            // Refresh page to update UI
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-        } else {
-            showAlert(data.error, 'danger');
-        }
-    } catch (error) {
-        console.error('Error toggling vehicle block:', error);
-        showAlert('Wystąpił błąd podczas zmiany statusu pojazdu', 'danger');
     }
 }
 
-function clearReports(commentId) {
-    if (!confirm('Czy na pewno chcesz wyczyścić zgłoszenia tego komentarza?')) {
-        return;
-    }
-
-    // For this demo, we'll just remove the visual indicator
-    // In a real app, you'd make an API call to clear reports
-    const commentElement = document.getElementById(`admin-comment-${commentId}`);
-    if (commentElement) {
-        commentElement.style.opacity = '0.5';
-        setTimeout(() => {
-            commentElement.remove();
-        }, 500);
-    }
-
-    showAlert('Zgłoszenia zostały wyczyszczone', 'success');
-}
-
-function blockVehicleByAdmin(event) {
-    event.preventDefault();
-    const licensePlate = document.getElementById('licensePlateToBlock').value.trim().toUpperCase();
-
-    if (!licensePlate) {
-        showAlert('Wprowadź numer rejestracyjny', 'warning');
-        return;
-    }
-
-    toggleBlockVehicle(licensePlate);
-    document.getElementById('licensePlateToBlock').value = '';
-}
-
-function showStats() {
-    // Placeholder for system statistics
-    showAlert('Funkcja statystyk będzie dostępna wkrótce', 'info');
-}
-
-function exportData() {
-    // Placeholder for data export
-    showAlert('Eksport danych zostanie wkrótce zaimplementowany', 'info');
-}
-
-function systemHealth() {
-    // Placeholder for system health check
-    showAlert('System działa poprawnie ✅', 'success');
-}
-
-function addNewVehicle(licensePlate) {
-    if (!licensePlate || licensePlate.trim() === '') {
-        showAlert('Wprowadź poprawny numer rejestracyjny', 'warning');
-        return;
-    }
-
-    // Redirect to vehicle detail page - it will create the vehicle if it doesn't exist
-    // We'll handle this in the backend by creating vehicle when first rating is added
-    showAlert('Aby dodać pojazd, oceń go w następnym kroku', 'info');
-
-    // For now, just redirect to a page that will handle adding
-    setTimeout(() => {
-        window.location.href = `/vehicle/${licensePlate}`;
-    }, 1500);
-}
-
-// Utility functions
-function showAlert(message, type = 'info') {
+function showAlert(type, message) {
     // Remove existing alerts
-    const existingAlerts = document.querySelectorAll('.alert.auto-dismiss');
+    const existingAlerts = document.querySelectorAll('.alert');
     existingAlerts.forEach(alert => alert.remove());
-
+    
     // Create new alert
     const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show auto-dismiss`;
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
     alertDiv.innerHTML = `
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
-
-    // Insert at the top of main content
-    const mainContent = document.querySelector('main .container');
-    if (mainContent) {
-        mainContent.insertBefore(alertDiv, mainContent.firstChild);
-    }
-
-    // Auto-remove after 5 seconds
+    
+    // Add to page
+    const container = document.querySelector('.container') || document.body;
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Auto-hide after 5 seconds
     setTimeout(() => {
         if (alertDiv.parentNode) {
             alertDiv.remove();
@@ -529,87 +373,87 @@ function initializeFormValidation() {
             if (!form.checkValidity()) {
                 event.preventDefault();
                 event.stopPropagation();
+                showAlert('warning', 'Proszę wypełnić wszystkie wymagane pola poprawnie');
             }
             form.classList.add('was-validated');
         });
     });
 }
 
-function addEventListeners() {
-    // Keyboard shortcuts
-    document.addEventListener('keydown', function(event) {
-        // Ctrl/Cmd + / for search focus
-        if ((event.ctrlKey || event.metaKey) && event.key === '/') {
-            event.preventDefault();
-            const searchInput = document.querySelector('input[name="q"]');
-            if (searchInput) {
-                searchInput.focus();
-            }
+// Add incident functionality (if needed)
+function addIncident(licensePlate, latitude, longitude, incidentType, description, severity) {
+    showLoading(true);
+    
+    fetch('/api/add_incident', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            license_plate: licensePlate,
+            latitude: latitude,
+            longitude: longitude,
+            incident_type: incidentType,
+            description: description,
+            severity: severity
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message || 'Zdarzenie zostało dodane');
+        } else {
+            showAlert('danger', data.error || 'Wystąpił błąd podczas dodawania zdarzenia');
         }
-    });
-
-    // Auto-resize textareas
-    const textareas = document.querySelectorAll('textarea');
-    textareas.forEach(textarea => {
-        textarea.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = this.scrollHeight + 'px';
-        });
-    });
-
-    // Smooth scroll for anchor links
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function(event) {
-            event.preventDefault();
-            const href = this.getAttribute('href');
-            if (href && href !== '#') {
-                const target = document.querySelector(href);
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                }
-            }
-        });
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
+    })
+    .finally(() => {
+        showLoading(false);
     });
 }
 
-// Search functionality enhancements
-function enhanceSearch() {
-    const searchInput = document.querySelector('input[name="q"]');
-    if (searchInput) {
-        let searchTimeout;
-
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            const query = this.value.trim();
-
-            if (query.length >= 2) {
-                searchTimeout = setTimeout(() => {
-                    // Could implement live search suggestions here
-                    console.log('Search query:', query);
-                }, 300);
-            }
-        });
+// CSS animations for loading state
+const style = document.createElement('style');
+style.textContent = `
+    .loading {
+        position: relative;
+        pointer-events: none;
     }
-}
-
-// Initialize search enhancements
-document.addEventListener('DOMContentLoaded', enhanceSearch);
-
-// Export functions for global access
-window.submitRating = submitRating;
-window.submitComment = submitComment;
-window.reportComment = reportComment;
-window.deleteMyComment = deleteMyComment;
-window.adminDeleteComment = adminDeleteComment;
-window.toggleBlockVehicle = toggleBlockVehicle;
-window.showAlert = showAlert;
-window.clearReports = clearReports;
-window.showStats = showStats;
-window.exportData = exportData;
-window.systemHealth = systemHealth;
-window.addNewVehicle = addNewVehicle;
-window.blockVehicleByAdmin = blockVehicleByAdmin;
-window.voteComment = voteComment;
+    
+    .loading::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 16px;
+        height: 16px;
+        border: 2px solid #ffffff;
+        border-top: 2px solid transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    
+    .star {
+        cursor: pointer;
+        color: #ddd;
+        transition: color 0.2s ease;
+    }
+    
+    .star.filled {
+        color: #ffc107;
+    }
+    
+    .star.hover {
+        color: #ffed4a;
+    }
+`;
+document.head.appendChild(style);
