@@ -16,9 +16,9 @@ function initializeStarRatings() {
     document.querySelectorAll('.star-rating-interactive').forEach(ratingElement => {
         const stars = ratingElement.querySelectorAll('.star-interactive');
         const licensePlate = ratingElement.dataset.licensePlate;
-        
+
         console.log(`Found rating element for ${licensePlate} with ${stars.length} stars`);
-        
+
         stars.forEach((star, index) => {
             star.style.cursor = 'pointer';
             star.addEventListener('mouseenter', () => highlightStars(stars, index + 1));
@@ -55,7 +55,7 @@ function getCurrentRating(ratingElement) {
 function setRating(stars, rating, licensePlate, ratingElement) {
     currentRating = rating;
     highlightStars(stars, rating);
-    
+
     // Send rating to server
     submitRating(licensePlate, rating);
 }
@@ -74,9 +74,9 @@ async function submitRating(licensePlate, rating) {
                 rating: rating
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             showAlert(data.message, 'success');
             // Refresh page after a short delay to show updated rating
@@ -97,14 +97,14 @@ async function submitRating(licensePlate, rating) {
 async function submitComment(licensePlate) {
     console.log('submitComment called for:', licensePlate);
     const commentText = document.getElementById('comment').value.trim();
-    
+
     if (!commentText) {
         showAlert('Komentarz nie może być pusty', 'warning');
         return;
     }
-    
+
     console.log('Submitting comment:', commentText);
-    
+
     try {
         showLoading(true);
         const response = await fetch('/api/comment', {
@@ -117,9 +117,9 @@ async function submitComment(licensePlate) {
                 comment: commentText
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             showAlert(data.message, 'success');
             document.getElementById('comment').value = '';
@@ -142,7 +142,7 @@ async function reportComment(commentId) {
     if (!confirm('Czy na pewno chcesz zgłosić ten komentarz jako nieodpowiedni?')) {
         return;
     }
-    
+
     try {
         const response = await fetch('/api/report_comment', {
             method: 'POST',
@@ -153,9 +153,9 @@ async function reportComment(commentId) {
                 comment_id: commentId
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             showAlert(data.message, 'success');
             // Disable the report button
@@ -179,7 +179,7 @@ async function deleteMyComment(commentId) {
     if (!confirm('Czy na pewno chcesz usunąć swój komentarz?')) {
         return;
     }
-    
+
     try {
         const response = await fetch('/api/delete_my_comment', {
             method: 'POST',
@@ -190,9 +190,9 @@ async function deleteMyComment(commentId) {
                 comment_id: commentId
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             showAlert(data.message, 'success');
             // Remove comment from DOM
@@ -217,7 +217,7 @@ async function adminDeleteComment(commentId) {
     if (!confirm('Czy na pewno chcesz usunąć ten komentarz?')) {
         return;
     }
-    
+
     try {
         const response = await fetch('/api/admin/delete_comment', {
             method: 'POST',
@@ -228,9 +228,9 @@ async function adminDeleteComment(commentId) {
                 comment_id: commentId
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             showAlert(data.message, 'success');
             // Remove comment from DOM
@@ -255,7 +255,7 @@ async function toggleBlockVehicle(licensePlate) {
     if (!confirm(`Czy na pewno chcesz zmienić status blokady pojazdu ${licensePlate}?`)) {
         return;
     }
-    
+
     try {
         const response = await fetch('/api/admin/block_vehicle', {
             method: 'POST',
@@ -266,9 +266,9 @@ async function toggleBlockVehicle(licensePlate) {
                 license_plate: licensePlate
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             showAlert(data.message, 'success');
             // Refresh page to update UI
@@ -288,7 +288,7 @@ function clearReports(commentId) {
     if (!confirm('Czy na pewno chcesz wyczyścić zgłoszenia tego komentarza?')) {
         return;
     }
-    
+
     // For this demo, we'll just remove the visual indicator
     // In a real app, you'd make an API call to clear reports
     const commentElement = document.getElementById(`admin-comment-${commentId}`);
@@ -298,19 +298,19 @@ function clearReports(commentId) {
             commentElement.remove();
         }, 500);
     }
-    
+
     showAlert('Zgłoszenia zostały wyczyszczone', 'success');
 }
 
 function blockVehicleByAdmin(event) {
     event.preventDefault();
     const licensePlate = document.getElementById('licensePlateToBlock').value.trim().toUpperCase();
-    
+
     if (!licensePlate) {
         showAlert('Wprowadź numer rejestracyjny', 'warning');
         return;
     }
-    
+
     toggleBlockVehicle(licensePlate);
     document.getElementById('licensePlateToBlock').value = '';
 }
@@ -335,11 +335,11 @@ function addNewVehicle(licensePlate) {
         showAlert('Wprowadź poprawny numer rejestracyjny', 'warning');
         return;
     }
-    
+
     // Redirect to vehicle detail page - it will create the vehicle if it doesn't exist
     // We'll handle this in the backend by creating vehicle when first rating is added
     showAlert('Aby dodać pojazd, oceń go w następnym kroku', 'info');
-    
+
     // For now, just redirect to a page that will handle adding
     setTimeout(() => {
         window.location.href = `/vehicle/${licensePlate}`;
@@ -351,7 +351,7 @@ function showAlert(message, type = 'info') {
     // Remove existing alerts
     const existingAlerts = document.querySelectorAll('.alert.auto-dismiss');
     existingAlerts.forEach(alert => alert.remove());
-    
+
     // Create new alert
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show auto-dismiss`;
@@ -359,13 +359,13 @@ function showAlert(message, type = 'info') {
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
-    
+
     // Insert at the top of main content
     const mainContent = document.querySelector('main .container');
     if (mainContent) {
         mainContent.insertBefore(alertDiv, mainContent.firstChild);
     }
-    
+
     // Auto-remove after 5 seconds
     setTimeout(() => {
         if (alertDiv.parentNode) {
@@ -396,7 +396,7 @@ function initializeFormValidation() {
             this.value = this.value.toUpperCase().replace(/[^A-Z0-9\s]/g, '');
         });
     });
-    
+
     // Form submission validation
     const forms = document.querySelectorAll('form');
     forms.forEach(form => {
@@ -422,7 +422,7 @@ function addEventListeners() {
             }
         }
     });
-    
+
     // Auto-resize textareas
     const textareas = document.querySelectorAll('textarea');
     textareas.forEach(textarea => {
@@ -431,7 +431,7 @@ function addEventListeners() {
             this.style.height = this.scrollHeight + 'px';
         });
     });
-    
+
     // Smooth scroll for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function(event) {
@@ -455,11 +455,11 @@ function enhanceSearch() {
     const searchInput = document.querySelector('input[name="q"]');
     if (searchInput) {
         let searchTimeout;
-        
+
         searchInput.addEventListener('input', function() {
             clearTimeout(searchTimeout);
             const query = this.value.trim();
-            
+
             if (query.length >= 2) {
                 searchTimeout = setTimeout(() => {
                     // Could implement live search suggestions here
@@ -487,3 +487,4 @@ window.exportData = exportData;
 window.systemHealth = systemHealth;
 window.addNewVehicle = addNewVehicle;
 window.blockVehicleByAdmin = blockVehicleByAdmin;
+window.voteComment = voteComment;

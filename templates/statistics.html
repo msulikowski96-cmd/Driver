@@ -1,0 +1,161 @@
+
+{% extends "base.html" %}
+
+{% block title %}Moje statystyki{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h1><i class="fas fa-chart-bar me-2"></i>Moje statystyki</h1>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-user me-2"></i>Moja aktywność</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6 text-center mb-3">
+                            <div class="stat-box">
+                                <h3 class="text-primary">{{ user_stats.total_ratings }}</h3>
+                                <small class="text-muted">Dodane oceny</small>
+                            </div>
+                        </div>
+                        <div class="col-6 text-center mb-3">
+                            <div class="stat-box">
+                                <h3 class="text-success">{{ user_stats.total_comments }}</h3>
+                                <small class="text-muted">Napisane komentarze</small>
+                            </div>
+                        </div>
+                        <div class="col-6 text-center mb-3">
+                            <div class="stat-box">
+                                <h3 class="text-warning">{{ user_stats.total_incidents }}</h3>
+                                <small class="text-muted">Zgłoszone zdarzenia</small>
+                            </div>
+                        </div>
+                        <div class="col-6 text-center mb-3">
+                            <div class="stat-box">
+                                <h3 class="text-info">{{ user_stats.helpful_votes }}</h3>
+                                <small class="text-muted">Otrzymane głosy "pomocne"</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="text-center">
+                        <h4 class="text-purple">{{ user_stats.reputation_score }}</h4>
+                        <small class="text-muted">Punkty reputacji</small>
+                        <div class="progress mt-2">
+                            {% set next_level = ((user_stats.reputation_score // 100) + 1) * 100 %}
+                            {% set progress = ((user_stats.reputation_score % 100) / 100) * 100 %}
+                            <div class="progress-bar bg-purple" role="progressbar" style="width: {{ progress }}%" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <small class="text-muted">Do poziomu {{ (user_stats.reputation_score // 100) + 1 }}: {{ next_level - user_stats.reputation_score }} pkt</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-medal me-2"></i>Ranking</h5>
+                </div>
+                <div class="card-body">
+                    <div class="ranking-list">
+                        {% for stats, user in top_users %}
+                        <div class="d-flex justify-content-between align-items-center mb-2 {% if user.id == get_current_user().id %}bg-light rounded p-2{% endif %}">
+                            <div class="d-flex align-items-center">
+                                {% if loop.index <= 3 %}
+                                    <span class="badge bg-{% if loop.index == 1 %}warning{% elif loop.index == 2 %}secondary{% else %}primary{% endif %} me-2">
+                                        #{{ loop.index }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted me-2">#{{ loop.index }}</span>
+                                {% endif %}
+                                <strong {% if user.id == get_current_user().id %}class="text-primary"{% endif %}>
+                                    {{ user.username }}{% if user.id == get_current_user().id %} (Ty){% endif %}
+                                </strong>
+                            </div>
+                            <div class="text-end">
+                                <span class="fw-bold">{{ stats.reputation_score }}</span>
+                                <small class="text-muted d-block">pkt reputacji</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('ranking_users') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-trophy me-1"></i>Pełny ranking
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle me-2"></i>Jak zdobywać punkty reputacji?</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fas fa-star text-warning me-2"></i>
+                                    <strong>+1 punkt</strong> za każdą dodaną ocenę
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-comment text-info me-2"></i>
+                                    <strong>+2 punkty</strong> za każdy napisany komentarz
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                                    <strong>+3 punkty</strong> za każde zgłoszone zdarzenie
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-thumbs-up text-success me-2"></i>
+                                    <strong>+5 punktów</strong> za każdy głos "pomocne" na Twoim komentarzu
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.stat-box {
+    padding: 15px;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+}
+
+.text-purple {
+    color: #6f42c1 !important;
+}
+
+.bg-purple {
+    background-color: #6f42c1 !important;
+}
+
+.progress {
+    height: 8px;
+}
+</style>
+{% endblock %}

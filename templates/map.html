@@ -1,0 +1,292 @@
+
+{% extends "base.html" %}
+
+{% block title %}Mapa zdarzeń{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1><i class="fas fa-map-marked-alt me-2"></i>Mapa zdarzeń drogowych</h1>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body p-0">
+                    <div id="map" style="height: 600px; width: 100%;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            {% if session.user_id %}
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-plus-circle me-2"></i>Dodaj zdarzenie</h5>
+                </div>
+                <div class="card-body">
+                    <form id="incident-form">
+                        <div class="mb-3">
+                            <label for="license-plate" class="form-label">Numer rejestracyjny</label>
+                            <input type="text" class="form-control" id="license-plate" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="incident-type" class="form-label">Typ zdarzenia</label>
+                            <select class="form-select" id="incident-type" required>
+                                <option value="">Wybierz typ</option>
+                                <option value="aggressive_driving">Agresywna jazda</option>
+                                <option value="poor_parking">Złe parkowanie</option>
+                                <option value="traffic_violation">Naruszenie przepisów</option>
+                                <option value="other">Inne</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="severity" class="form-label">Poziom zagrożenia</label>
+                            <select class="form-select" id="severity">
+                                <option value="1">1 - Niewielkie</option>
+                                <option value="2">2 - Umiarkowane</option>
+                                <option value="3" selected>3 - Średnie</option>
+                                <option value="4">4 - Wysokie</option>
+                                <option value="5">5 - Bardzo wysokie</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Opis zdarzenia</label>
+                            <textarea class="form-control" id="description" rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Kliknij na mapę, aby wybrać lokalizację zdarzenia
+                            </small>
+                            <div id="selected-location" class="mt-2"></div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-danger w-100" disabled id="submit-incident">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Dodaj zdarzenie
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-list me-2"></i>Ostatnie zdarzenia</h5>
+                </div>
+                <div class="card-body">
+                    <div class="incident-list" style="max-height: 400px; overflow-y: auto;">
+                        {% for incident in incidents %}
+                        <div class="incident-item mb-3 p-2 border rounded" data-lat="{{ incident.latitude }}" data-lng="{{ incident.longitude }}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{{ incident.license_plate }}</strong>
+                                    <span class="badge bg-{% if incident.incident_type == 'aggressive_driving' %}danger{% elif incident.incident_type == 'poor_parking' %}warning{% elif incident.incident_type == 'traffic_violation' %}primary{% else %}secondary{% endif %} ms-2">
+                                        {% if incident.incident_type == 'aggressive_driving' %}Agresywna jazda
+                                        {% elif incident.incident_type == 'poor_parking' %}Złe parkowanie
+                                        {% elif incident.incident_type == 'traffic_violation' %}Naruszenie przepisów
+                                        {% else %}Inne{% endif %}
+                                    </span>
+                                </div>
+                                <small class="text-muted">{{ incident.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                            </div>
+                            <p class="mb-1 mt-2">{{ incident.description[:100] }}{% if incident.description|length > 100 %}...{% endif %}</p>
+                            <div class="severity-bar">
+                                <small>Zagrożenie: </small>
+                                {% for i in range(1, 6) %}
+                                    <i class="fas fa-circle {% if i <= incident.severity %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.5rem;"></i>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let map;
+let selectedLocation = null;
+let markers = [];
+
+function initMap() {
+    // Domyślna lokalizacja - Warszawa
+    map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 10,
+        center: { lat: 52.237049, lng: 21.017532 }
+    });
+
+    // Dodaj znaczniki dla istniejących zdarzeń
+    {% for incident in incidents %}
+    addIncidentMarker(
+        {{ incident.latitude }}, 
+        {{ incident.longitude }}, 
+        '{{ incident.license_plate }}',
+        '{{ incident.incident_type }}',
+        '{{ incident.description|e }}',
+        {{ incident.severity }},
+        '{{ incident.created_at.strftime('%d.%m.%Y %H:%M') }}'
+    );
+    {% endfor %}
+
+    // Nasłuchuj kliknięć na mapę
+    {% if session.user_id %}
+    map.addListener('click', function(event) {
+        selectedLocation = {
+            lat: event.latLng.lat(),
+            lng: event.latLng.lng()
+        };
+        
+        // Usuń poprzedni znacznik tymczasowy
+        if (window.tempMarker) {
+            window.tempMarker.setMap(null);
+        }
+        
+        // Dodaj nowy znacznik tymczasowy
+        window.tempMarker = new google.maps.Marker({
+            position: selectedLocation,
+            map: map,
+            icon: {
+                url: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJDOC4xIDIgNSA1LjEgNSA5QzUgMTQuMiAxMiAyMiAxMiAyMkMxMiAyMiAxOSAxNC4yIDE5IDlDMTkgNS4xIDE1LjkgMiAxMiAyWk0xMiAxMS41QzEwLjYgMTEuNSA5LjUgMTAuNCAgOS41IDlDOS41IDcuNiAxMC42IDYuNSAxMiA2LjVDMTMuNCA2LjUgMTQuNSA3LjYgMTQuNSA5QzE0LjUgMTAuNCAxMy40IDExLjUgMTIgMTEuNVoiIGZpbGw9IiNGRkE1MDAiLz4KPHN2Zz4K',
+                scaledSize: new google.maps.Size(30, 30)
+            },
+            title: 'Wybrana lokalizacja'
+        });
+        
+        document.getElementById('selected-location').innerHTML = 
+            '<small class="text-success"><i class="fas fa-map-marker-alt me-1"></i>Lokalizacja wybrana</small>';
+        
+        document.getElementById('submit-incident').disabled = false;
+    });
+    {% endif %}
+}
+
+function addIncidentMarker(lat, lng, licensePlate, type, description, severity, date) {
+    const iconColors = {
+        'aggressive_driving': '#DC3545',
+        'poor_parking': '#FFC107',
+        'traffic_violation': '#0D6EFD',
+        'other': '#6C757D'
+    };
+    
+    const marker = new google.maps.Marker({
+        position: { lat: lat, lng: lng },
+        map: map,
+        icon: {
+            url: `data:image/svg+xml;base64,${btoa(`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.1 2 5 5.1 5 9C5 14.2 12 22 12 22C12 22 19 14.2 19 9C19 5.1 15.9 2 12 2ZM12 11.5C10.6 11.5 9.5 10.4 9.5 9C9.5 7.6 10.6 6.5 12 6.5C13.4 6.5 14.5 7.6 14.5 9C14.5 10.4 13.4 11.5 12 11.5Z" fill="${iconColors[type] || '#6C757D'}"/></svg>`)}`,
+            scaledSize: new google.maps.Size(25, 25)
+        },
+        title: `${licensePlate} - ${type}`
+    });
+    
+    const infoWindow = new google.maps.InfoWindow({
+        content: `
+            <div>
+                <h6><strong>${licensePlate}</strong></h6>
+                <p><strong>Typ:</strong> ${getIncidentTypeName(type)}</p>
+                <p><strong>Opis:</strong> ${description}</p>
+                <p><strong>Zagrożenie:</strong> ${'★'.repeat(severity)}${'☆'.repeat(5-severity)}</p>
+                <p><small><strong>Data:</strong> ${date}</small></p>
+            </div>
+        `
+    });
+    
+    marker.addListener('click', function() {
+        infoWindow.open(map, marker);
+    });
+    
+    markers.push(marker);
+}
+
+function getIncidentTypeName(type) {
+    const types = {
+        'aggressive_driving': 'Agresywna jazda',
+        'poor_parking': 'Złe parkowanie',
+        'traffic_violation': 'Naruszenie przepisów',
+        'other': 'Inne'
+    };
+    return types[type] || 'Nieznany';
+}
+
+{% if session.user_id %}
+document.getElementById('incident-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (!selectedLocation) {
+        showAlert('Wybierz lokalizację na mapie!', 'warning');
+        return;
+    }
+    
+    const formData = {
+        license_plate: document.getElementById('license-plate').value,
+        latitude: selectedLocation.lat,
+        longitude: selectedLocation.lng,
+        incident_type: document.getElementById('incident-type').value,
+        description: document.getElementById('description').value,
+        severity: document.getElementById('severity').value
+    };
+    
+    fetch('/api/add_incident', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            // Reset form
+            document.getElementById('incident-form').reset();
+            selectedLocation = null;
+            if (window.tempMarker) {
+                window.tempMarker.setMap(null);
+            }
+            document.getElementById('selected-location').innerHTML = '';
+            document.getElementById('submit-incident').disabled = true;
+            
+            // Reload page to show new incident
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Wystąpił błąd podczas dodawania zdarzenia!', 'danger');
+    });
+});
+{% endif %}
+
+// Highlight incident on map when clicking in list
+document.querySelectorAll('.incident-item').forEach(item => {
+    item.addEventListener('click', function() {
+        const lat = parseFloat(this.dataset.lat);
+        const lng = parseFloat(this.dataset.lng);
+        
+        map.setCenter({ lat: lat, lng: lng });
+        map.setZoom(15);
+        
+        // Find and click the corresponding marker
+        markers.forEach(marker => {
+            const pos = marker.getPosition();
+            if (Math.abs(pos.lat() - lat) < 0.0001 && Math.abs(pos.lng() - lng) < 0.0001) {
+                google.maps.event.trigger(marker, 'click');
+            }
+        });
+    });
+});
+</script>
+
+<!-- Google Maps API -->
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initMap" async defer></script>
+{% endblock %}

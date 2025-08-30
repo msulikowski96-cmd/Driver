@@ -32,7 +32,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 db.init_app(app)
 
 # Import models after db initialization
-from models import User, Vehicle, Rating, Comment, Report
+from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote
 
 # Helper functions for authentication
 def is_logged_in():
@@ -303,6 +303,14 @@ def api_rate():
 
     db.session.commit()
 
+    # Update user statistics
+    user_stats = UserStatistics.query.filter_by(user_id=session['user_id']).first()
+    if not user_stats:
+        user_stats = UserStatistics(user_id=session['user_id'])
+        db.session.add(user_stats)
+        db.session.commit()
+    user_stats.update_statistics()
+
     return jsonify({'success': True, 'message': 'Ocena została zapisana'})
 
 @app.route('/api/comment', methods=['POST'])
@@ -334,6 +342,14 @@ def api_comment():
 
     db.session.add(comment)
     db.session.commit()
+
+    # Update user statistics
+    user_stats = UserStatistics.query.filter_by(user_id=session['user_id']).first()
+    if not user_stats:
+        user_stats = UserStatistics(user_id=session['user_id'])
+        db.session.add(user_stats)
+        db.session.commit()
+    user_stats.update_statistics()
 
     return jsonify({'success': True, 'message': 'Komentarz został dodany'})
 
@@ -420,6 +436,160 @@ def api_delete_my_comment():
     db.session.commit()
 
     return jsonify({'success': True, 'message': 'Komentarz został usunięty'})
+
+@app.route('/map')
+def map_view():
+    incidents = Incident.query.order_by(Incident.created_at.desc()).limit(100).all()
+    return render_template('map.html', incidents=incidents)
+
+@app.route('/statistics')
+def statistics():
+    if not is_logged_in():
+        flash('Musisz być zalogowany, aby zobaczyć statystyki!', 'warning')
+        return redirect(url_for('login'))
+    
+    user = get_current_user()
+    user_stats = UserStatistics.query.filter_by(user_id=user.id).first()
+    
+    if not user_stats:
+        user_stats = UserStatistics(user_id=user.id)
+        db.session.add(user_stats)
+        db.session.commit()
+        user_stats.update_statistics()
+    
+    # Get top users for comparison
+    top_users = db.session.query(UserStatistics, User).join(User).order_by(UserStatistics.reputation_score.desc()).limit(10).all()
+    
+    return render_template('statistics.html', user_stats=user_stats, top_users=top_users)
+
+@app.route('/ranking_users')
+def ranking_users():
+    sort_by = request.args.get('sort', 'reputation')  # reputation, ratings, comments, incidents
+    
+    if sort_by == 'reputation':
+        top_users = db.session.query(UserStatistics, User).join(User).order_by(UserStatistics.reputation_score.desc()).limit(50).all()
+    elif sort_by == 'ratings':
+        top_users = db.session.query(UserStatistics, User).join(User).order_by(UserStatistics.total_ratings.desc()).limit(50).all()
+    elif sort_by == 'comments':
+        top_users = db.session.query(UserStatistics, User).join(User).order_by(UserStatistics.total_comments.desc()).limit(50).all()
+    elif sort_by == 'incidents':
+        top_users = db.session.query(UserStatistics, User).join(User).order_by(UserStatistics.total_incidents.desc()).limit(50).all()
+    else:
+        top_users = db.session.query(UserStatistics, User).join(User).order_by(UserStatistics.reputation_score.desc()).limit(50).all()
+    
+    return render_template('ranking_users.html', top_users=top_users, sort_by=sort_by)
+
+@app.route('/api/add_incident', methods=['POST'])
+def api_add_incident():
+    if not is_logged_in():
+        return jsonify({'error': 'Musisz być zalogowany'}), 401
+
+    data = request.get_json()
+    license_plate = data.get('license_plate', '').strip().upper()
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    incident_type = data.get('incident_type')
+    description = data.get('description', '').strip()
+    severity = data.get('severity', 1)
+
+    if not license_plate or not validate_license_plate(license_plate):
+        return jsonify({'error': 'Nieprawidłowy numer rejestracyjny'}), 400
+
+    if not latitude or not longitude:
+        return jsonify({'error': 'Lokalizacja jest wymagana'}), 400
+
+    if not incident_type or incident_type not in ['aggressive_driving', 'poor_parking', 'traffic_violation', 'other']:
+        return jsonify({'error': 'Nieprawidłowy typ zdarzenia'}), 400
+
+    if not description:
+        return jsonify({'error': 'Opis zdarzenia jest wymagany'}), 400
+
+    incident = Incident()
+    incident.user_id = session['user_id']
+    incident.license_plate = license_plate
+    incident.latitude = float(latitude)
+    incident.longitude = float(longitude)
+    incident.incident_type = incident_type
+    incident.description = description
+    incident.severity = int(severity)
+
+    db.session.add(incident)
+    db.session.commit()
+
+    # Update user statistics
+    user_stats = UserStatistics.query.filter_by(user_id=session['user_id']).first()
+    if user_stats:
+        user_stats.update_statistics()
+
+    return jsonify({'success': True, 'message': 'Zdarzenie zostało dodane'})
+
+@app.route('/api/vote_comment', methods=['POST'])
+def api_vote_comment():
+    if not is_logged_in():
+        return jsonify({'error': 'Musisz być zalogowany'}), 401
+
+    data = request.get_json()
+    comment_id = data.get('comment_id')
+    vote_type = data.get('vote_type')  # 'helpful' or 'unhelpful'
+
+    if vote_type not in ['helpful', 'unhelpful']:
+        return jsonify({'error': 'Nieprawidłowy typ głosu'}), 400
+
+    comment = Comment.query.get(comment_id)
+    if not comment:
+        return jsonify({'error': 'Komentarz nie został znaleziony'}), 404
+
+    # Check if user already voted
+    existing_vote = CommentVote.query.filter_by(
+        comment_id=comment_id,
+        user_id=session['user_id']
+    ).first()
+
+    if existing_vote:
+        # Update existing vote
+        if existing_vote.vote_type != vote_type:
+            # Remove old vote count
+            if existing_vote.vote_type == 'helpful':
+                comment.helpful_votes -= 1
+            else:
+                comment.unhelpful_votes -= 1
+            
+            # Add new vote count
+            if vote_type == 'helpful':
+                comment.helpful_votes += 1
+            else:
+                comment.unhelpful_votes += 1
+            
+            existing_vote.vote_type = vote_type
+            existing_vote.created_at = datetime.utcnow()
+        else:
+            return jsonify({'error': 'Już oddałeś ten głos'}), 400
+    else:
+        # Create new vote
+        vote = CommentVote()
+        vote.comment_id = comment_id
+        vote.user_id = session['user_id']
+        vote.vote_type = vote_type
+        
+        if vote_type == 'helpful':
+            comment.helpful_votes += 1
+        else:
+            comment.unhelpful_votes += 1
+        
+        db.session.add(vote)
+
+    db.session.commit()
+
+    # Update comment author's statistics
+    comment_author_stats = UserStatistics.query.filter_by(user_id=comment.user_id).first()
+    if comment_author_stats and vote_type == 'helpful':
+        comment_author_stats.helpful_votes = CommentVote.query.join(Comment).filter(
+            Comment.user_id == comment.user_id,
+            CommentVote.vote_type == 'helpful'
+        ).count()
+        comment_author_stats.update_statistics()
+
+    return jsonify({'success': True, 'message': 'Głos został zapisany'})
 
 def validate_license_plate(plate):
     # Polish license plate validation - only letters and numbers

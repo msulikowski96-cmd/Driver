@@ -1,0 +1,173 @@
+
+{% extends "base.html" %}
+
+{% block title %}Ranking użytkowników{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h1><i class="fas fa-trophy me-2"></i>Ranking aktywnych użytkowników</h1>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="btn-group w-100" role="group">
+                        <a href="{{ url_for('ranking_users', sort='reputation') }}" 
+                           class="btn btn-{% if sort_by == 'reputation' %}primary{% else %}outline-primary{% endif %}">
+                            <i class="fas fa-medal me-1"></i>Reputacja
+                        </a>
+                        <a href="{{ url_for('ranking_users', sort='ratings') }}" 
+                           class="btn btn-{% if sort_by == 'ratings' %}primary{% else %}outline-primary{% endif %}">
+                            <i class="fas fa-star me-1"></i>Oceny
+                        </a>
+                        <a href="{{ url_for('ranking_users', sort='comments') }}" 
+                           class="btn btn-{% if sort_by == 'comments' %}primary{% else %}outline-primary{% endif %}">
+                            <i class="fas fa-comment me-1"></i>Komentarze
+                        </a>
+                        <a href="{{ url_for('ranking_users', sort='incidents') }}" 
+                           class="btn btn-{% if sort_by == 'incidents' %}primary{% else %}outline-primary{% endif %}">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Zdarzenia
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        Ranking według: 
+                        {% if sort_by == 'reputation' %}Reputacji
+                        {% elif sort_by == 'ratings' %}Liczby ocen
+                        {% elif sort_by == 'comments' %}Liczby komentarzy
+                        {% elif sort_by == 'incidents' %}Liczby zdarzeń
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Pozycja</th>
+                                    <th>Użytkownik</th>
+                                    <th>Reputacja</th>
+                                    <th>Oceny</th>
+                                    <th>Komentarze</th>
+                                    <th>Zdarzenia</th>
+                                    <th>Głosy "pomocne"</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stats, user in top_users %}
+                                <tr {% if session.user_id and user.id == session.user_id %}class="table-primary"{% endif %}>
+                                    <td>
+                                        {% if loop.index <= 3 %}
+                                            <span class="badge bg-{% if loop.index == 1 %}warning{% elif loop.index == 2 %}secondary{% else %}primary{% endif %} fs-6">
+                                                {% if loop.index == 1 %}🥇
+                                                {% elif loop.index == 2 %}🥈
+                                                {% elif loop.index == 3 %}🥉
+                                                {% endif %}
+                                                #{{ loop.index }}
+                                            </span>
+                                        {% else %}
+                                            <span class="fw-bold">#{{ loop.index }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar-circle me-2">
+                                                {{ user.username[0].upper() }}
+                                            </div>
+                                            <div>
+                                                <strong>{{ user.username }}</strong>
+                                                {% if session.user_id and user.id == session.user_id %}
+                                                    <span class="badge bg-info ms-1">To Ty!</span>
+                                                {% endif %}
+                                                {% if user.is_admin %}
+                                                    <span class="badge bg-danger ms-1">Admin</span>
+                                                {% endif %}
+                                                <br>
+                                                <small class="text-muted">
+                                                    Dołączył: {{ user.created_at.strftime('%m.%Y') }}
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-purple">{{ stats.reputation_score }}</span>
+                                        <br>
+                                        <small class="text-muted">punktów</small>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-primary">{{ stats.total_ratings }}</span>
+                                        <br>
+                                        <small class="text-muted">ocen</small>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-info">{{ stats.total_comments }}</span>
+                                        <br>
+                                        <small class="text-muted">komentarzy</small>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-warning">{{ stats.total_incidents }}</span>
+                                        <br>
+                                        <small class="text-muted">zdarzeń</small>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-success">{{ stats.helpful_votes }}</span>
+                                        <br>
+                                        <small class="text-muted">głosów</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if not top_users %}
+    <div class="row mt-4">
+        <div class="col-12 text-center">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                Brak danych statystycznych. Zacznij oceniać i komentować, aby pojawić się w rankingu!
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.avatar-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(45deg, #007bff, #0056b3);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.text-purple {
+    color: #6f42c1 !important;
+}
+
+.table-primary {
+    --bs-table-accent-bg: rgba(13, 110, 253, 0.1);
+}
+</style>
+{% endblock %}

@@ -46,12 +46,12 @@
                         <h5 class="card-title">
                             <i class="fas fa-star me-2"></i>Oceń tego kierowcę
                         </h5>
-                        
+
                         <div class="mb-3">
                             <label class="form-label">Twoja ocena:</label>
                             <div class="star-rating-interactive" data-license-plate="{{ vehicle.license_plate }}">
                                 {% for i in range(1, 6) %}
-                                    <i class="fas fa-star star-interactive {% if user_rating and i <= user_rating.rating %}text-warning{% else %}text-muted{% endif %}" 
+                                    <i class="fas fa-star star-interactive {% if user_rating and i <= user_rating.rating %}text-warning{% else %}text-muted{% endif %}"
                                        data-rating="{{ i }}"></i>
                                 {% endfor %}
                             </div>
@@ -70,7 +70,7 @@
                         <button class="btn btn-primary" onclick="submitComment('{{ vehicle.license_plate }}')">
                             <i class="fas fa-comment me-1"></i>Dodaj komentarz
                         </button>
-                        
+
                         <small class="text-muted d-block mt-2">
                             <i class="fas fa-info-circle me-1"></i>
                             Kliknij na gwiazdki powyżej, aby ocenić kierowcę
@@ -85,37 +85,67 @@
                     <div class="card mb-3" id="comment-{{ comment.id }}">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1">
-                                    <h6 class="card-subtitle mb-2 text-muted">
-                                        <i class="fas fa-user me-1"></i>{{ comment.user.username }}
-                                        <small class="ms-2">{{ comment.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
-                                    </h6>
-                                    <p class="card-text">{{ comment.content }}</p>
-                                    {% if comment.reports > 0 %}
-                                        <small class="text-warning">
-                                            <i class="fas fa-exclamation-triangle me-1"></i>
-                                            Zgłoszenia: {{ comment.reports }}
-                                        </small>
+                                <div>
+                                    <strong>{{ comment.user.username }}</strong>
+                                    <small class="text-muted ms-2">{{ comment.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                                </div>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-link text-muted" type="button" data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        {% if session.user_id %}
+                                        <li>
+                                            <button class="dropdown-item" onclick="reportComment({{ comment.id }})">
+                                                <i class="fas fa-flag text-warning me-1"></i>Zgłoś
+                                            </button>
+                                        </li>
+                                        {% endif %}
+                                        {% if session.user_id and comment.user_id == session.user_id %}
+                                        <li>
+                                            <button class="dropdown-item text-danger" onclick="deleteMyComment({{ comment.id }})">
+                                                <i class="fas fa-trash me-1"></i>Usuń
+                                            </button>
+                                        </li>
+                                        {% endif %}
+                                        {% if is_admin() %}
+                                        <li>
+                                            <button class="dropdown-item text-danger" onclick="deleteComment({{ comment.id }})">
+                                                <i class="fas fa-trash me-1"></i>Usuń (Admin)
+                                            </button>
+                                        </li>
+                                        {% endif %}
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <p class="mt-2 mb-2">{{ comment.content }}</p>
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    {% if session.user_id and comment.user_id != session.user_id %}
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-success" onclick="voteComment({{ comment.id }}, 'helpful')">
+                                            <i class="fas fa-thumbs-up me-1"></i>Pomocne ({{ comment.helpful_votes }})
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger" onclick="voteComment({{ comment.id }}, 'unhelpful')">
+                                            <i class="fas fa-thumbs-down me-1"></i>Niepomocne ({{ comment.unhelpful_votes }})
+                                        </button>
+                                    </div>
+                                    {% else %}
+                                    <small class="text-muted">
+                                        <i class="fas fa-thumbs-up text-success me-1"></i>{{ comment.helpful_votes }}
+                                        <i class="fas fa-thumbs-down text-danger me-1 ms-2"></i>{{ comment.unhelpful_votes }}
+                                    </small>
                                     {% endif %}
                                 </div>
-                                <div class="btn-group btn-group-sm">
-                                    {% if session.user_id %}
-                                        {% if comment.user_id == session.user_id %}
-                                            <button class="btn btn-outline-danger" onclick="deleteMyComment({{ comment.id }})">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        {% else %}
-                                            <button class="btn btn-outline-warning" onclick="reportComment({{ comment.id }})">
-                                                <i class="fas fa-flag"></i>
-                                            </button>
-                                        {% endif %}
-                                        {% if get_current_user() and get_current_user().is_admin %}
-                                            <button class="btn btn-outline-danger" onclick="adminDeleteComment({{ comment.id }})">
-                                                <i class="fas fa-times"></i>
-                                            </button>
-                                        {% endif %}
-                                    {% endif %}
-                                </div>
+
+                                {% if comment.reports > 0 %}
+                                <small class="text-warning">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    Zgłoszenia: {{ comment.reports }}
+                                </small>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -132,7 +162,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
@@ -158,7 +188,7 @@
                         </div>
                     </div>
                 {% endfor %}
-                
+
                 {% if not ratings %}
                     <div class="text-center text-muted">
                         <i class="fas fa-chart-bar fa-2x mb-2"></i>

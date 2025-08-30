@@ -14,11 +14,11 @@
             <a class="navbar-brand" href="{{ url_for('index') }}">
                 <i class="fas fa-car me-2"></i>Oceny Kierowców
             </a>
-            
+
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            
+
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
@@ -46,14 +46,24 @@
                         {% endif %}
                     {% endif %}
                 </ul>
-                
+
                 <ul class="navbar-nav">
                     {% if session.user_id %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user me-1"></i>{{ get_current_user().username }}
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-user-circle me-1"></i>{{ get_current_user().username }}
                             </a>
                             <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="{{ url_for('statistics') }}">
+                                    <i class="fas fa-chart-bar me-1"></i>Moje statystyki
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                {% if is_admin() %}
+                                <li><a class="dropdown-item" href="{{ url_for('admin') }}">
+                                    <i class="fas fa-cog me-1"></i>Panel administratora
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                {% endif %}
                                 <li><a class="dropdown-item" href="{{ url_for('logout') }}">
                                     <i class="fas fa-sign-out-alt me-1"></i>Wyloguj
                                 </a></li>
