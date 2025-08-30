@@ -1,7 +1,7 @@
 [project]
-name = "repl-nix-workspace"
+name = "driver-rating-app"
 version = "0.1.0"
-description = "Add your description here"
+description = "Driver Rating Application - A Flask-based platform for rating and reviewing drivers"
 requires-python = ">=3.11"
 dependencies = [
     "email-validator>=2.3.0",
