@@ -1,5 +1,4 @@
 
-// PWA functionality
 class PWAManager {
     constructor() {
         this.deferredPrompt = null;
@@ -88,30 +87,38 @@ class PWAManager {
     async installApp() {
         if (this.deferredPrompt) {
             this.deferredPrompt.prompt();
-            const { outcome } = await this.deferredPrompt.userChoice;
-            console.log(`User response to the install prompt: ${outcome}`);
+            const result = await this.deferredPrompt.userChoice;
+            console.log('User response to the install prompt:', result);
             this.deferredPrompt = null;
             this.hideInstallButton();
         }
     }
 
     handleNetworkStatus() {
-        // Show network status
         window.addEventListener('online', () => {
+            console.log('Back online');
             this.showNetworkStatus('Połączenie przywrócone', 'success');
         });
 
         window.addEventListener('offline', () => {
-            this.showNetworkStatus('Brak połączenia z internetem', 'warning');
+            console.log('Gone offline');
+            this.showNetworkStatus('Brak połączenia internetowego', 'warning');
         });
     }
 
     showNetworkStatus(message, type) {
+        // Remove existing network status
+        const existing = document.querySelector('.network-status');
+        if (existing) {
+            existing.remove();
+        }
+
         const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed network-status`;
         alertDiv.style.cssText = `
             top: 20px;
-            right: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 1050;
             min-width: 300px;
         `;
@@ -124,7 +131,7 @@ class PWAManager {
 
         // Auto remove after 3 seconds
         setTimeout(() => {
-            if (alertDiv.parentNode) {
+            if (alertDiv && alertDiv.parentNode) {
                 alertDiv.remove();
             }
         }, 3000);

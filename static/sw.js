@@ -6,8 +6,10 @@ const urlsToCache = [
   '/static/css/icons.css',
   '/static/js/app.js',
   '/static/js/icons.js',
+  '/static/js/pwa.js',
   '/static/icons/icon-192x192.png',
   '/static/icons/icon-512x512.png',
+  '/static/manifest.json',
   'https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'
@@ -15,11 +17,15 @@ const urlsToCache = [
 
 // Install event
 self.addEventListener('install', event => {
+  console.log('[SW] Install');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Opened cache');
+        console.log('[SW] Caching app shell');
         return cache.addAll(urlsToCache);
+      })
+      .catch(error => {
+        console.error('[SW] Failed to cache:', error);
       })
   );
 });
@@ -31,22 +37,27 @@ self.addEventListener('fetch', event => {
       .then(response => {
         // Return cached version or fetch from network
         if (response) {
+          console.log('[SW] Serving from cache:', event.request.url);
           return response;
         }
-        return fetch(event.request);
-      }
-    )
+        console.log('[SW] Fetching from network:', event.request.url);
+        return fetch(event.request).catch(error => {
+          console.error('[SW] Network fetch failed:', error);
+          // Return offline page or default response if needed
+        });
+      })
   );
 });
 
 // Activate event
 self.addEventListener('activate', event => {
+  console.log('[SW] Activate');
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
+            console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -58,26 +69,14 @@ self.addEventListener('activate', event => {
 // Background sync for offline functionality
 self.addEventListener('sync', event => {
   if (event.tag === 'background-sync') {
+    console.log('[SW] Background sync');
     event.waitUntil(doBackgroundSync());
   }
 });
 
 function doBackgroundSync() {
   return new Promise((resolve) => {
-    console.log('Background sync completed');
+    console.log('[SW] Performing background sync');
     resolve();
   });
 }
-
-// Push notifications (optional)
-self.addEventListener('push', event => {
-  const options = {
-    body: event.data ? event.data.text() : 'Nowa ocena kierowcy!',
-    icon: '/static/icons/icon-192x192.png',
-    badge: '/static/icons/icon-72x72.png'
-  };
-
-  event.waitUntil(
-    self.registration.showNotification('Oceny Kierowców', options)
-  );
-});

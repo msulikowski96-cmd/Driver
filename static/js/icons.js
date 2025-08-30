@@ -1,5 +1,4 @@
 
-// Custom Icons Management
 class IconManager {
     constructor() {
         this.loadCustomIcons();
