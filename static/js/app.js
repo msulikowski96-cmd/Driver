@@ -90,7 +90,171 @@ function rateVehicle(licensePlate) {
     });
 }
 
-// Comment functionality
+// Comment function
+function addComment(licensePlate) {
+    const commentInput = document.getElementById('comment-input');
+    if (!commentInput || !commentInput.value.trim()) {
+        showAlert('Wprowadź treść komentarza!', 'warning');
+        return;
+    }
+
+    const comment = commentInput.value.trim();
+
+    fetch('/api/comment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            license_plate: licensePlate,
+            comment: comment
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            commentInput.value = '';
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Wystąpił błąd podczas dodawania komentarza!', 'danger');
+    });
+}
+
+// Add new vehicle function
+function addNewVehicle(licensePlate) {
+    if (!licensePlate || licensePlate.trim() === '') {
+        showAlert('Wprowadź poprawny numer rejestracyjny', 'warning');
+        return;
+    }
+    
+    // Redirect to vehicle detail page - it will show rating form for new vehicle
+    showAlert('Przekierowywanie do strony pojazdu...', 'info');
+    
+    setTimeout(() => {
+        window.location.href = `/vehicle/${licensePlate}`;
+    }, 1000);
+}
+
+// Report comment function
+function reportComment(commentId) {
+    if (!confirm('Czy na pewno chcesz zgłosić ten komentarz?')) {
+        return;
+    }
+
+    fetch('/api/report_comment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            comment_id: commentId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Wystąpił błąd podczas zgłaszania komentarza!', 'danger');
+    });
+}
+
+// Delete my comment function
+function deleteMyComment(commentId) {
+    if (!confirm('Czy na pewno chcesz usunąć ten komentarz?')) {
+        return;
+    }
+
+    fetch('/api/delete_my_comment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            comment_id: commentId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Wystąpił błąd podczas usuwania komentarza!', 'danger');
+    });
+}
+
+// Admin functions
+function toggleBlockVehicle(licensePlate) {
+    fetch('/api/admin/block_vehicle', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            license_plate: licensePlate
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Wystąpił błąd!', 'danger');
+    });
+}
+
+function deleteComment(commentId) {
+    if (!confirm('Czy na pewno chcesz usunąć ten komentarz?')) {
+        return;
+    }
+
+    fetch('/api/admin/delete_comment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            comment_id: commentId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Wystąpił błąd podczas usuwania komentarza!', 'danger');
+    });
+}nality
 function addComment(licensePlate) {
     const commentInput = document.getElementById('comment-input');
     if (!commentInput) {

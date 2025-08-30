@@ -159,10 +159,20 @@ def logout():
 
 @app.route('/vehicle/<license_plate>')
 def vehicle_detail(license_plate):
-    vehicle = Vehicle.query.filter_by(license_plate=license_plate.upper()).first()
-    if not vehicle:
-        flash('Pojazd nie został znaleziony!', 'warning')
+    # Validate license plate format
+    if not validate_license_plate(license_plate):
+        flash('Nieprawidłowy format numeru rejestracyjnego!', 'warning')
         return redirect(url_for('index'))
+
+    vehicle = Vehicle.query.filter_by(license_plate=license_plate.upper()).first()
+    
+    # Create vehicle if it doesn't exist
+    if not vehicle:
+        vehicle = Vehicle()
+        vehicle.license_plate = license_plate.upper()
+        db.session.add(vehicle)
+        db.session.commit()
+        flash(f'Pojazd {license_plate.upper()} został dodany do bazy danych!', 'success')
 
     if vehicle.is_blocked and not is_admin():
         flash('Ten pojazd został zablokowany!', 'danger')
