@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Oceny Kierowców{% endblock %}</title>
-    
+
     <!-- PWA Meta Tags -->
     <meta name="description" content="System oceniania kierowców na podstawie tablic rejestracyjnych">
     <meta name="theme-color" content="#0d6efd">
@@ -14,15 +14,17 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-touch-fullscreen" content="yes">
     <meta name="format-detection" content="telephone=no">
-    
+
     <!-- PWA Icons -->
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/icon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='icons/icon-16x16.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-180x180.png') }}">
-    
+
     <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/icons.css') }}" rel="stylesheet">
 </head>
@@ -47,6 +49,11 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('ranking') }}">
                             <i class="fas fa-trophy me-1"></i>Ranking
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('traffic') }}">
+                            <i class="fas fa-road me-1"></i>Ruch
                         </a>
                     </li>
                     <li class="nav-item">
@@ -136,12 +143,16 @@
         </div>
     </footer>
 
+    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{{ url_for('static', filename='js/icons.js') }}"></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Traffic Map JS -->
+    <script src="{{ url_for('static', filename='js/traffic.js') }}"></script>
+    <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="{{ url_for('static', filename='js/pwa.js') }}"></script>
-    
+
     {% block scripts %}{% endblock %}
 </body>
 </html>

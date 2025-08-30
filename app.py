@@ -315,6 +315,13 @@ def dashboard():
     return render_template('dashboard.html')
 
 
+# Routes for traffic information
+@app.route('/traffic')
+def traffic():
+    """Traffic map page"""
+    return render_template('traffic.html')
+
+
 # API Routes
 @app.route('/api/rate', methods=['POST'])
 def api_rate():
@@ -581,8 +588,7 @@ def api_delete_my_comment():
 
 @app.route('/map')
 def map_view():
-    incidents = Incident.query.order_by(
-        Incident.created_at.desc()).limit(100).all()
+    incidents = Incident.query.order_by(Incident.created_at.desc()).limit(50).all()
     return render_template('map.html', incidents=incidents)
 
 
