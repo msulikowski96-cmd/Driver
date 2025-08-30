@@ -311,7 +311,7 @@ def dashboard():
     if not is_admin():
         flash('Brak uprawnień administratora!', 'danger')
         return redirect(url_for('index'))
-    
+
     return render_template('dashboard.html')
 
 
@@ -511,7 +511,7 @@ def api_admin_stats():
     total_comments = Comment.query.count()
     total_reports = Report.query.count()
     blocked_vehicles = Vehicle.query.filter_by(is_blocked=True).count()
-    
+
     # Monthly registration stats (last 6 months)
     from sqlalchemy import extract, func
     monthly_users = db.session.query(
@@ -525,7 +525,7 @@ def api_admin_stats():
         extract('year', User.created_at),
         extract('month', User.created_at)
     ).limit(6).all()
-    
+
     # Top rated vehicles
     top_vehicles = db.session.query(
         Vehicle.license_plate,
@@ -534,7 +534,7 @@ def api_admin_stats():
     ).join(Rating).group_by(Vehicle.id).having(
         func.count(Rating.id) >= 3
     ).order_by(func.avg(Rating.rating).desc()).limit(10).all()
-    
+
     # Rating distribution
     rating_distribution = db.session.query(
         Rating.rating,
@@ -759,17 +759,17 @@ def profile():
     if not is_logged_in():
         flash('Musisz być zalogowany, aby zobaczyć profil!', 'warning')
         return redirect(url_for('login'))
-    
+
     user = get_current_user()
     if not user:
         flash('Błąd sesji użytkownika. Zaloguj się ponownie.', 'danger')
         return redirect(url_for('login'))
-    
+
     # Get user's activity
     user_ratings = Rating.query.filter_by(user_id=user.id).order_by(Rating.created_at.desc()).limit(10).all()
     user_comments = Comment.query.filter_by(user_id=user.id).order_by(Comment.created_at.desc()).limit(10).all()
     user_favorites = Favorite.query.filter_by(user_id=user.id).order_by(Favorite.created_at.desc()).all()
-    
+
     # Get user statistics
     user_stats = UserStatistics.query.filter_by(user_id=user.id).first()
     if not user_stats:
@@ -777,7 +777,7 @@ def profile():
         db.session.add(user_stats)
         db.session.commit()
         user_stats.update_statistics()
-    
+
     return render_template('profile.html', 
                          user=user, 
                          user_ratings=user_ratings,
@@ -865,6 +865,11 @@ def api_check_favorite(license_plate):
     ).first()
 
     return jsonify({'is_favorite': favorite is not None})
+
+
+@app.route('/manifest.json')
+def manifest():
+    return app.send_static_file('manifest.json')
 
 
 def validate_license_plate(plate):
