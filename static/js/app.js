@@ -1,329 +1,473 @@
 
 // Driver Rating Application JavaScript
 
+// Global variables
+let currentRatings = {};
+
+// Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
     initializeStarRatings();
-    initializeFormValidation();
-    initializeSearch();
+    initializeCommentForms();
+    initializeVotingButtons();
+    initializeAdminButtons();
+    initializeSearchForm();
 });
 
+// Initialize star rating systems
 function initializeStarRatings() {
     console.log('Initializing star ratings...');
+    
     const ratingContainers = document.querySelectorAll('.star-rating');
     
     ratingContainers.forEach(container => {
-        const licensePlate = container.dataset.licensePlate;
-        const currentRating = parseInt(container.dataset.currentRating) || 0;
-        const stars = container.querySelectorAll('.star');
+        const licensePlate = container.dataset.vehicle;
+        const currentRating = parseInt(container.dataset.rating) || 0;
+        const readonly = container.dataset.readonly === 'true';
         
         console.log(`Found rating element for ${licensePlate} with ${currentRating} stars`);
         
-        // Set initial rating display
-        updateStarDisplay(stars, currentRating);
+        // Store current rating
+        currentRatings[licensePlate] = currentRating;
         
-        stars.forEach((star, index) => {
-            star.addEventListener('click', function() {
-                const rating = index + 1;
-                console.log(`Star ${rating} clicked for ${licensePlate}`);
-                submitRating(licensePlate, rating);
-                updateStarDisplay(stars, rating);
-            });
+        // Create stars
+        for (let i = 1; i <= 5; i++) {
+            const star = document.createElement('span');
+            star.className = 'star';
+            star.dataset.rating = i;
+            star.innerHTML = '★';
             
-            star.addEventListener('mouseenter', function() {
-                updateStarDisplay(stars, index + 1, true);
-            });
+            // Set initial state
+            if (i <= currentRating) {
+                star.classList.add('filled');
+            }
+            
+            if (!readonly) {
+                // Add hover effects
+                star.addEventListener('mouseenter', () => {
+                    highlightStars(container, i);
+                });
+                
+                star.addEventListener('mouseleave', () => {
+                    highlightStars(container, currentRatings[licensePlate] || 0);
+                });
+                
+                // Add click handler
+                star.addEventListener('click', () => {
+                    console.log(`Star ${i} clicked for ${licensePlate}`);
+                    submitRating(licensePlate, i);
+                });
+            }
+            
+            container.appendChild(star);
+        }
+    });
+}
+
+// Highlight stars up to given rating
+function highlightStars(container, rating) {
+    const stars = container.querySelectorAll('.star');
+    stars.forEach((star, index) => {
+        if (index < rating) {
+            star.classList.add('filled');
+        } else {
+            star.classList.remove('filled');
+        }
+    });
+}
+
+// Submit rating to server
+async function submitRating(licensePlate, rating) {
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/rate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                license_plate: licensePlate,
+                rating: rating
+            })
         });
         
-        container.addEventListener('mouseleave', function() {
-            updateStarDisplay(stars, currentRating);
-        });
-    });
-}
-
-function updateStarDisplay(stars, rating, isHover = false) {
-    stars.forEach((star, index) => {
-        star.classList.remove('filled', 'hover');
-        if (index < rating) {
-            star.classList.add(isHover ? 'hover' : 'filled');
-        }
-    });
-}
-
-function submitRating(licensePlate, rating) {
-    showLoading(true);
-    
-    fetch('/api/rate', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            license_plate: licensePlate,
-            rating: rating
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message || 'Ocena została zapisana');
-            // Update the current rating in the container
-            const container = document.querySelector(`[data-license-plate="${licensePlate}"]`);
-            if (container) {
-                container.dataset.currentRating = rating;
-            }
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            currentRatings[licensePlate] = rating;
+            showMessage(data.message || 'Ocena została zapisana!', 'success');
+            
+            // Update rating display
+            updateRatingDisplay(licensePlate, rating);
         } else {
-            showAlert('danger', data.error || 'Wystąpił błąd podczas zapisywania oceny');
+            showMessage(data.error || 'Wystąpił błąd podczas zapisywania oceny', 'error');
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
-    })
-    .finally(() => {
+    } catch (error) {
+        console.error('Error submitting rating:', error);
+        showMessage('Wystąpił błąd podczas zapisywania oceny', 'error');
+    } finally {
         showLoading(false);
+    }
+}
+
+// Update rating display after successful submission
+function updateRatingDisplay(licensePlate, rating) {
+    const container = document.querySelector(`[data-vehicle="${licensePlate}"]`);
+    if (container) {
+        currentRatings[licensePlate] = rating;
+        highlightStars(container, rating);
+        
+        // Update average rating if displayed
+        const avgElement = document.querySelector(`#avg-rating-${licensePlate}`);
+        if (avgElement) {
+            // Refresh page to show updated average
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        }
+    }
+}
+
+// Initialize comment forms
+function initializeCommentForms() {
+    const commentForms = document.querySelectorAll('[data-comment-form]');
+    
+    commentForms.forEach(form => {
+        const submitBtn = form.querySelector('[data-submit-comment]');
+        if (submitBtn) {
+            submitBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const licensePlate = this.dataset.vehicle;
+                submitComment(licensePlate);
+            });
+        }
     });
 }
 
-function submitComment(licensePlate) {
+// Submit comment function
+async function submitComment(licensePlate) {
     console.log('submitComment called for:', licensePlate);
-    const commentTextarea = document.querySelector(`#comment-${licensePlate.replace(/\s+/g, '-')}`);
-    const commentText = commentTextarea ? commentTextarea.value.trim() : '';
+    
+    const textarea = document.querySelector(`#comment-${licensePlate}`);
+    const commentText = textarea ? textarea.value.trim() : '';
     
     if (!commentText) {
-        showAlert('warning', 'Komentarz nie może być pusty');
+        showMessage('Wprowadź treść komentarza', 'warning');
         return;
     }
     
-    showLoading(true);
-    
-    fetch('/api/comment', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            license_plate: licensePlate,
-            comment: commentText
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message || 'Komentarz został dodany');
-            commentTextarea.value = '';
-            // Reload the page to show the new comment
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        } else {
-            showAlert('danger', data.error || 'Wystąpił błąd podczas dodawania komentarza');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
-    })
-    .finally(() => {
-        showLoading(false);
-    });
-}
-
-function voteComment(commentId, voteType) {
-    showLoading(true);
-    
-    fetch('/api/vote_comment', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            comment_id: commentId,
-            vote_type: voteType
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message || 'Głos został zapisany');
-            // Reload to update vote counts
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        } else {
-            showAlert('danger', data.error || 'Wystąpił błąd podczas głosowania');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
-    })
-    .finally(() => {
-        showLoading(false);
-    });
-}
-
-function reportComment(commentId) {
-    if (!confirm('Czy na pewno chcesz zgłosić ten komentarz?')) {
-        return;
-    }
-    
-    showLoading(true);
-    
-    fetch('/api/report_comment', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            comment_id: commentId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message || 'Komentarz został zgłoszony');
-        } else {
-            showAlert('danger', data.error || 'Wystąpił błąd podczas zgłaszania');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
-    })
-    .finally(() => {
-        showLoading(false);
-    });
-}
-
-function deleteMyComment(commentId) {
-    if (!confirm('Czy na pewno chcesz usunąć swój komentarz?')) {
-        return;
-    }
-    
-    showLoading(true);
-    
-    fetch('/api/delete_my_comment', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            comment_id: commentId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message || 'Komentarz został usunięty');
-            // Remove the comment element from DOM
-            const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`);
-            if (commentElement) {
-                commentElement.remove();
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/comment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                license_plate: licensePlate,
+                comment: commentText
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showMessage(data.message || 'Komentarz został dodany!', 'success');
+            
+            // Clear textarea
+            if (textarea) {
+                textarea.value = '';
             }
+            
+            // Reload page to show new comment
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
         } else {
-            showAlert('danger', data.error || 'Wystąpił błąd podczas usuwania');
+            showMessage(data.error || 'Wystąpił błąd podczas dodawania komentarza', 'error');
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
-    })
-    .finally(() => {
+    } catch (error) {
+        console.error('Error submitting comment:', error);
+        showMessage('Wystąpił błąd podczas dodawania komentarza', 'error');
+    } finally {
         showLoading(false);
+    }
+}
+
+// Initialize voting buttons
+function initializeVotingButtons() {
+    const voteButtons = document.querySelectorAll('[data-vote-type]');
+    
+    voteButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const commentId = this.dataset.commentId;
+            const voteType = this.dataset.voteType;
+            voteComment(commentId, voteType);
+        });
     });
 }
 
-function toggleVehicleBlock(licensePlate) {
+// Vote on comment function
+async function voteComment(commentId, voteType) {
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/vote_comment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                comment_id: commentId,
+                vote_type: voteType
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showMessage(data.message || 'Głos został zapisany!', 'success');
+            
+            // Update vote counts
+            updateVoteDisplay(commentId, voteType);
+        } else {
+            showMessage(data.error || 'Wystąpił błąd podczas głosowania', 'error');
+        }
+    } catch (error) {
+        console.error('Error voting on comment:', error);
+        showMessage('Wystąpił błąd podczas głosowania', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Update vote display after voting
+function updateVoteDisplay(commentId, voteType) {
+    const button = document.querySelector(`[data-comment-id="${commentId}"][data-vote-type="${voteType}"]`);
+    if (button) {
+        button.classList.add('voted');
+        
+        // Reload page to show updated vote counts
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    }
+}
+
+// Initialize admin buttons
+function initializeAdminButtons() {
+    // Block/Unblock vehicle buttons
+    const blockButtons = document.querySelectorAll('[data-toggle-block]');
+    blockButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const licensePlate = this.dataset.vehicle;
+            toggleVehicleBlock(licensePlate);
+        });
+    });
+    
+    // Delete comment buttons
+    const deleteButtons = document.querySelectorAll('[data-delete-comment]');
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const commentId = this.dataset.commentId;
+            deleteComment(commentId);
+        });
+    });
+    
+    // Report comment buttons
+    const reportButtons = document.querySelectorAll('[data-report-comment]');
+    reportButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const commentId = this.dataset.commentId;
+            reportComment(commentId);
+        });
+    });
+}
+
+// Toggle vehicle block status
+async function toggleVehicleBlock(licensePlate) {
     if (!confirm('Czy na pewno chcesz zmienić status blokady tego pojazdu?')) {
         return;
     }
     
-    showLoading(true);
-    
-    fetch('/api/admin/block_vehicle', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            license_plate: licensePlate
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message || 'Status pojazdu został zmieniony');
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/admin/block_vehicle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                license_plate: licensePlate
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showMessage(data.message || 'Status pojazdu został zmieniony!', 'success');
+            
+            // Reload page to show updated status
             setTimeout(() => {
                 window.location.reload();
             }, 1000);
         } else {
-            showAlert('danger', data.error || 'Wystąpił błąd podczas zmiany statusu');
+            showMessage(data.error || 'Wystąpił błąd podczas zmiany statusu', 'error');
         }
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('Error toggling vehicle block:', error);
-        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
-    })
-    .finally(() => {
+        showMessage('Wystąpił błąd podczas zmiany statusu', 'error');
+    } finally {
         showLoading(false);
-    });
+    }
 }
 
-function deleteComment(commentId) {
+// Delete comment function
+async function deleteComment(commentId) {
     if (!confirm('Czy na pewno chcesz usunąć ten komentarz?')) {
         return;
     }
     
-    showLoading(true);
-    
-    fetch('/api/admin/delete_comment', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            comment_id: commentId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message || 'Komentarz został usunięty');
-            // Remove the comment element from DOM
-            const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`);
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/admin/delete_comment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                comment_id: commentId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showMessage(data.message || 'Komentarz został usunięty!', 'success');
+            
+            // Remove comment from DOM
+            const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`).closest('.comment-box');
             if (commentElement) {
                 commentElement.remove();
             }
         } else {
-            showAlert('danger', data.error || 'Wystąpił błąd podczas usuwania');
+            showMessage(data.error || 'Wystąpił błąd podczas usuwania komentarza', 'error');
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
-    })
-    .finally(() => {
+    } catch (error) {
+        console.error('Error deleting comment:', error);
+        showMessage('Wystąpił błąd podczas usuwania komentarza', 'error');
+    } finally {
         showLoading(false);
-    });
+    }
 }
 
-function initializeSearch() {
+// Delete own comment function
+async function deleteMyComment(commentId) {
+    if (!confirm('Czy na pewno chcesz usunąć swój komentarz?')) {
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/delete_my_comment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                comment_id: commentId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showMessage(data.message || 'Komentarz został usunięty!', 'success');
+            
+            // Remove comment from DOM
+            const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`).closest('.comment-box');
+            if (commentElement) {
+                commentElement.remove();
+            }
+        } else {
+            showMessage(data.error || 'Wystąpił błąd podczas usuwania komentarza', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting own comment:', error);
+        showMessage('Wystąpił błąd podczas usuwania komentarza', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Report comment function
+async function reportComment(commentId) {
+    if (!confirm('Czy na pewno chcesz zgłosić ten komentarz?')) {
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/report_comment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                comment_id: commentId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showMessage(data.message || 'Komentarz został zgłoszony!', 'success');
+            
+            // Disable report button
+            const reportButton = document.querySelector(`[data-report-comment][data-comment-id="${commentId}"]`);
+            if (reportButton) {
+                reportButton.disabled = true;
+                reportButton.textContent = 'Zgłoszono';
+            }
+        } else {
+            showMessage(data.error || 'Wystąpił błąd podczas zgłaszania komentarza', 'error');
+        }
+    } catch (error) {
+        console.error('Error reporting comment:', error);
+        showMessage('Wystąpił błąd podczas zgłaszania komentarza', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Initialize search form
+function initializeSearchForm() {
     const searchInput = document.querySelector('#search-input');
     if (searchInput) {
         searchInput.addEventListener('input', function() {
-            const query = this.value.trim();
+            const query = this.value.trim().toUpperCase();
             console.log('Search query:', query);
-            // You can add real-time search functionality here
+            
+            // Real-time search suggestions can be implemented here
+            if (query.length >= 2) {
+                // Optional: implement live search suggestions
+            }
         });
     }
 }
 
-function showAlert(type, message) {
-    // Remove existing alerts
-    const existingAlerts = document.querySelectorAll('.alert');
-    existingAlerts.forEach(alert => alert.remove());
-    
-    // Create new alert
+// Utility functions
+function showMessage(message, type = 'info') {
+    // Create alert element
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
     alertDiv.innerHTML = `
@@ -331,11 +475,12 @@ function showAlert(type, message) {
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     
-    // Add to page
+    // Insert at top of main content
     const container = document.querySelector('.container') || document.body;
-    container.insertBefore(alertDiv, container.firstChild);
+    const firstChild = container.firstElementChild;
+    container.insertBefore(alertDiv, firstChild);
     
-    // Auto-hide after 5 seconds
+    // Auto-remove after 5 seconds
     setTimeout(() => {
         if (alertDiv.parentNode) {
             alertDiv.remove();
@@ -344,7 +489,7 @@ function showAlert(type, message) {
 }
 
 function showLoading(show) {
-    const buttons = document.querySelectorAll('button[type="submit"], .btn-primary');
+    const buttons = document.querySelectorAll('button[type="submit"], .btn');
     buttons.forEach(button => {
         if (show) {
             button.classList.add('loading');
@@ -356,63 +501,64 @@ function showLoading(show) {
     });
 }
 
-function initializeFormValidation() {
-    // License plate validation
-    const licensePlateInputs = document.querySelectorAll('input[pattern*="A-Za-z0-9"]');
-    licensePlateInputs.forEach(input => {
-        input.addEventListener('input', function() {
-            // Convert to uppercase and remove non-alphanumeric characters
-            this.value = this.value.toUpperCase().replace(/[^A-Z0-9\s]/g, '');
-        });
-    });
-
-    // Form submission validation
-    const forms = document.querySelectorAll('form');
-    forms.forEach(form => {
-        form.addEventListener('submit', function(event) {
-            if (!form.checkValidity()) {
-                event.preventDefault();
-                event.stopPropagation();
-                showAlert('warning', 'Proszę wypełnić wszystkie wymagane pola poprawnie');
-            }
-            form.classList.add('was-validated');
-        });
-    });
+// Format license plate
+function formatLicensePlate(plate) {
+    // Remove spaces and convert to uppercase
+    plate = plate.replace(/\s+/g, '').toUpperCase();
+    
+    // Add space after letters (Polish format)
+    if (plate.length >= 3) {
+        const letters = plate.substring(0, 2);
+        const numbers = plate.substring(2);
+        return `${letters} ${numbers}`;
+    }
+    
+    return plate;
 }
 
-// Add incident functionality (if needed)
-function addIncident(licensePlate, latitude, longitude, incidentType, description, severity) {
-    showLoading(true);
-    
-    fetch('/api/add_incident', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            license_plate: licensePlate,
-            latitude: latitude,
-            longitude: longitude,
-            incident_type: incidentType,
-            description: description,
-            severity: severity
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('success', data.message || 'Zdarzenie zostało dodane');
+// Validate license plate format
+function validateLicensePlate(plate) {
+    // Polish license plate validation
+    const cleanPlate = plate.replace(/\s+/g, '').toUpperCase();
+    return /^[A-Z0-9]+$/.test(cleanPlate) && cleanPlate.length >= 4 && cleanPlate.length <= 8;
+}
+
+// Add incident function (for map functionality)
+async function addIncident(licensePlate, latitude, longitude, type, description, severity = 1) {
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/add_incident', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                license_plate: licensePlate,
+                latitude: latitude,
+                longitude: longitude,
+                incident_type: type,
+                description: description,
+                severity: severity
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showMessage(data.message || 'Zdarzenie zostało dodane!', 'success');
+            return true;
         } else {
-            showAlert('danger', data.error || 'Wystąpił błąd podczas dodawania zdarzenia');
+            showMessage(data.error || 'Wystąpił błąd podczas dodawania zdarzenia', 'error');
+            return false;
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', 'Wystąpił błąd podczas komunikacji z serwerem');
-    })
-    .finally(() => {
+    } catch (error) {
+        console.error('Error adding incident:', error);
+        showMessage('Wystąpił błąd podczas dodawania zdarzenia', 'error');
+        return false;
+    } finally {
         showLoading(false);
-    });
+    }
 }
 
 // CSS animations for loading state
@@ -452,8 +598,23 @@ style.textContent = `
         color: #ffc107;
     }
     
-    .star.hover {
+    .star:hover {
         color: #ffed4a;
     }
+    
+    .vote-button.voted {
+        background-color: var(--primary-color);
+        color: white;
+    }
 `;
+
 document.head.appendChild(style);
+
+// Export functions for global access
+window.submitComment = submitComment;
+window.voteComment = voteComment;
+window.toggleVehicleBlock = toggleVehicleBlock;
+window.deleteComment = deleteComment;
+window.deleteMyComment = deleteMyComment;
+window.reportComment = reportComment;
+window.addIncident = addIncident;
