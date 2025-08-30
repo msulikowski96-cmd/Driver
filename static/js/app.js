@@ -254,9 +254,98 @@ function deleteComment(commentId) {
         console.error('Error:', error);
         showAlert('Wystąpił błąd podczas usuwania komentarza!', 'danger');
     });
-}nality
-function addComment(licensePlate) {
-    const commentInput = document.getElementById('comment-input');
+}
+
+// Interactive star rating functionality for vehicle detail page
+function initializeInteractiveRating() {
+    const starContainers = document.querySelectorAll('.star-rating-interactive');
+    
+    starContainers.forEach(container => {
+        const stars = container.querySelectorAll('.star-interactive');
+        const licensePlate = container.dataset.licensePlate;
+        
+        stars.forEach((star, index) => {
+            star.addEventListener('click', function() {
+                const rating = parseInt(this.dataset.rating);
+                submitRating(licensePlate, rating);
+            });
+            
+            star.addEventListener('mouseover', function() {
+                highlightStarsUpTo(stars, index);
+            });
+        });
+        
+        container.addEventListener('mouseleave', function() {
+            resetStarHighlight(stars);
+        });
+    });
+}
+
+function highlightStarsUpTo(stars, index) {
+    stars.forEach((star, i) => {
+        if (i <= index) {
+            star.classList.remove('text-muted');
+            star.classList.add('text-warning');
+        } else {
+            star.classList.remove('text-warning');
+            star.classList.add('text-muted');
+        }
+    });
+}
+
+function resetStarHighlight(stars) {
+    // Reset to current rating or empty state
+    const container = stars[0].closest('.star-rating-interactive');
+    const currentRating = container.querySelector('.star-interactive.text-warning:last-of-type');
+    
+    stars.forEach((star, index) => {
+        star.classList.remove('text-warning', 'text-muted');
+        if (currentRating) {
+            const currentRatingValue = parseInt(currentRating.dataset.rating);
+            if (index < currentRatingValue) {
+                star.classList.add('text-warning');
+            } else {
+                star.classList.add('text-muted');
+            }
+        } else {
+            star.classList.add('text-muted');
+        }
+    });
+}
+
+function submitRating(licensePlate, rating) {
+    if (!rating || rating < 1 || rating > 5) {
+        showAlert('Wybierz ocenę od 1 do 5 gwiazdek!', 'warning');
+        return;
+    }
+
+    fetch('/api/rate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            license_plate: licensePlate,
+            rating: rating
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Wystąpił błąd podczas zapisywania oceny!', 'danger');
+    });
+}
+
+function submitComment(licensePlate) {
+    const commentInput = document.getElementById('comment');
     if (!commentInput) {
         showAlert('Nie znaleziono pola komentarza!', 'danger');
         return;
@@ -492,6 +581,7 @@ function showAlert(message, type = 'info') {
 // Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     initializeRating();
+    initializeInteractiveRating();
 
     // Search input handler
     const searchInput = document.getElementById('search-input');
