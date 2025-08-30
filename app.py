@@ -40,7 +40,13 @@ def is_logged_in():
 
 def get_current_user():
     if is_logged_in():
-        return User.query.get(session['user_id'])
+        try:
+            user_id = session.get('user_id')
+            if user_id:
+                return User.query.get(user_id)
+        except Exception as e:
+            print(f"Error getting current user: {e}")
+            session.clear()
     return None
 
 def is_admin():
@@ -449,6 +455,10 @@ def statistics():
         return redirect(url_for('login'))
     
     user = get_current_user()
+    if not user:
+        flash('Błąd sesji użytkownika. Zaloguj się ponownie.', 'danger')
+        return redirect(url_for('login'))
+    
     user_stats = UserStatistics.query.filter_by(user_id=user.id).first()
     
     if not user_stats:
