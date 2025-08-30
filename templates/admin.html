@@ -117,9 +117,9 @@
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
-                    <button class="btn btn-outline-primary" onclick="showStats()">
-                        <i class="fas fa-chart-bar me-1"></i>Statystyki systemu
-                    </button>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-chart-area me-1"></i>Dashboard statystyk
+                    </a>
                     <button class="btn btn-outline-warning" onclick="exportData()">
                         <i class="fas fa-download me-1"></i>Eksport danych
                     </button>
@@ -187,18 +187,92 @@ function blockVehicleByAdmin(event) {
 }
 
 function showStats() {
-    // Placeholder for system statistics
-    showAlert('Funkcja statystyk będzie dostępna wkrótce', 'info');
+    // Redirect to dashboard
+    window.location.href = '/dashboard';
 }
 
-function exportData() {
-    // Placeholder for data export
-    showAlert('Eksport danych zostanie wkrótce zaimplementowany', 'info');
+async function exportData() {
+    if (!confirm('Czy na pewno chcesz wyeksportować dane systemowe?')) {
+        return;
+    }
+    
+    try {
+        showAlert('Przygotowywanie eksportu danych...', 'info');
+        
+        const response = await fetch('/api/admin/stats');
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // Create CSV content
+            const csvContent = createCSVExport(data.stats);
+            
+            // Download file
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `driver_ratings_export_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showAlert('Dane zostały wyeksportowane pomyślnie!', 'success');
+        } else {
+            showAlert('Nie udało się wyeksportować danych', 'danger');
+        }
+    } catch (error) {
+        console.error('Export error:', error);
+        showAlert('Wystąpił błąd podczas eksportu danych', 'danger');
+    }
 }
 
-function systemHealth() {
-    // Placeholder for system health check
-    showAlert('System działa poprawnie ✅', 'success');
+function createCSVExport(stats) {
+    let csv = 'Typ,Wartość\n';
+    csv += `Użytkownicy,${stats.total_users}\n`;
+    csv += `Pojazdy,${stats.total_vehicles}\n`;
+    csv += `Oceny,${stats.total_ratings}\n`;
+    csv += `Komentarze,${stats.total_comments}\n`;
+    csv += `Zgłoszenia,${stats.total_reports}\n`;
+    csv += `Zablokowane pojazdy,${stats.blocked_vehicles}\n\n`;
+    
+    csv += 'Najlepsze pojazdy\n';
+    csv += 'Numer rejestracyjny,Średnia ocena,Liczba ocen\n';
+    stats.top_vehicles.forEach(vehicle => {
+        csv += `${vehicle.license_plate},${vehicle.avg_rating.toFixed(2)},${vehicle.rating_count}\n`;
+    });
+    
+    return csv;
+}
+
+async function systemHealth() {
+    try {
+        showAlert('Sprawdzanie stanu systemu...', 'info');
+        
+        const response = await fetch('/api/admin/stats');
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            const stats = data.stats;
+            let healthMessage = '✅ System działa poprawnie!\n\n';
+            healthMessage += `📊 Statystyki:\n`;
+            healthMessage += `• ${stats.total_users} użytkowników\n`;
+            healthMessage += `• ${stats.total_vehicles} pojazdów\n`;
+            healthMessage += `• ${stats.total_ratings} ocen\n`;
+            healthMessage += `• ${stats.total_comments} komentarzy\n`;
+            
+            if (stats.total_reports > 0) {
+                healthMessage += `\n⚠️ ${stats.total_reports} aktywnych zgłoszeń`;
+            }
+            
+            showAlert(healthMessage, 'success');
+        } else {
+            showAlert('❌ Nie udało się sprawdzić stanu systemu', 'danger');
+        }
+    } catch (error) {
+        console.error('Health check error:', error);
+        showAlert('❌ Błąd podczas sprawdzania stanu systemu', 'danger');
+    }
 }
 </script>
 {% endblock %}

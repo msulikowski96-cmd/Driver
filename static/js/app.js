@@ -465,6 +465,69 @@ function initializeSearchForm() {
     }
 }
 
+// Admin delete comment function
+async function adminDeleteComment(commentId) {
+    if (!confirm('Czy na pewno chcesz usunąć ten komentarz?')) {
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/admin/delete_comment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                comment_id: commentId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showAlert(data.message || 'Komentarz został usunięty!', 'success');
+            
+            // Remove comment from DOM
+            const commentElement = document.getElementById(`admin-comment-${commentId}`);
+            if (commentElement) {
+                commentElement.remove();
+            }
+        } else {
+            showAlert(data.error || 'Wystąpił błąd podczas usuwania komentarza', 'danger');
+        }
+    } catch (error) {
+        console.error('Error deleting comment:', error);
+        showAlert('Wystąpił błąd podczas usuwania komentarza', 'danger');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Show alert function (compatible with Bootstrap alerts)
+function showAlert(message, type = 'info') {
+    // Create alert element
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insert at top of main content
+    const container = document.querySelector('.container') || document.body;
+    const firstChild = container.firstElementChild;
+    container.insertBefore(alertDiv, firstChild);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
 // Utility functions
 function showMessage(message, type = 'info') {
     // Create alert element
@@ -521,6 +584,49 @@ function validateLicensePlate(plate) {
     // Polish license plate validation
     const cleanPlate = plate.replace(/\s+/g, '').toUpperCase();
     return /^[A-Z0-9]+$/.test(cleanPlate) && cleanPlate.length >= 4 && cleanPlate.length <= 8;
+}
+
+// Clear reports function for admin
+async function clearReports(commentId) {
+    if (!confirm('Czy na pewno chcesz wyczyścić zgłoszenia tego komentarza?')) {
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/admin/clear_reports', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                comment_id: commentId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showAlert(data.message || 'Zgłoszenia zostały wyczyszczone!', 'success');
+            
+            // Remove comment from admin view
+            const commentElement = document.getElementById(`admin-comment-${commentId}`);
+            if (commentElement) {
+                commentElement.style.opacity = '0.5';
+                setTimeout(() => {
+                    commentElement.remove();
+                }, 500);
+            }
+        } else {
+            showAlert(data.error || 'Wystąpił błąd podczas czyszczenia zgłoszeń', 'danger');
+        }
+    } catch (error) {
+        console.error('Error clearing reports:', error);
+        showAlert('Wystąpił błąd podczas czyszczenia zgłoszeń', 'danger');
+    } finally {
+        showLoading(false);
+    }
 }
 
 // Add incident function (for map functionality)

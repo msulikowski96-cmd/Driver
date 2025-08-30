@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Oceny Kierowców{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title mb-0">
+                    <i class="fas fa-chart-area me-2"></i>Dashboard Statystyk
+                </h2>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Przeglądaj zaawansowane statystyki i analizy systemu ocen kierowców.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mt-4" id="stats-cards">
+    <div class="col-md-6 col-xl-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                <h4 class="card-title text-primary" id="total-users">0</h4>
+                <p class="card-text">Użytkowników</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-car fa-2x text-success mb-2"></i>
+                <h4 class="card-title text-success" id="total-vehicles">0</h4>
+                <p class="card-text">Pojazdów</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-star fa-2x text-warning mb-2"></i>
+                <h4 class="card-title text-warning" id="total-ratings">0</h4>
+                <p class="card-text">Ocen</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-comments fa-2x text-info mb-2"></i>
+                <h4 class="card-title text-info" id="total-comments">0</h4>
+                <p class="card-text">Komentarzy</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="row mt-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-line me-2"></i>Rejestracje użytkowników (ostatnie 6 miesięcy)
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="monthlyUsersChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>Rozkład ocen
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="ratingDistributionChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Vehicles -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-trophy me-2"></i>Najlepiej oceniane pojazdy (min. 3 oceny)
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="top-vehicles-table">
+                        <thead>
+                            <tr>
+                                <th>Pozycja</th>
+                                <th>Numer rejestracyjny</th>
+                                <th>Średnia ocena</th>
+                                <th>Liczba ocen</th>
+                                <th>Akcje</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Data will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.min.js"></script>
+<script>
+let monthlyChart, ratingChart;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardStats();
+});
+
+async function loadDashboardStats() {
+    try {
+        showLoading(true);
+        
+        const response = await fetch('/api/admin/stats');
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            updateStatsCards(data.stats);
+            createMonthlyUsersChart(data.stats.monthly_users);
+            createRatingDistributionChart(data.stats.rating_distribution);
+            updateTopVehiclesTable(data.stats.top_vehicles);
+        } else {
+            showAlert('Nie udało się załadować statystyk', 'danger');
+        }
+    } catch (error) {
+        console.error('Error loading dashboard stats:', error);
+        showAlert('Wystąpił błąd podczas ładowania statystyk', 'danger');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function updateStatsCards(stats) {
+    document.getElementById('total-users').textContent = stats.total_users;
+    document.getElementById('total-vehicles').textContent = stats.total_vehicles;
+    document.getElementById('total-ratings').textContent = stats.total_ratings;
+    document.getElementById('total-comments').textContent = stats.total_comments;
+}
+
+function createMonthlyUsersChart(monthlyData) {
+    const ctx = document.getElementById('monthlyUsersChart').getContext('2d');
+    
+    const labels = monthlyData.map(item => `${item.month}/${item.year}`);
+    const counts = monthlyData.map(item => item.count);
+    
+    if (monthlyChart) {
+        monthlyChart.destroy();
+    }
+    
+    monthlyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Nowi użytkownicy',
+                data: counts,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                tension: 0.1,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: true
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createRatingDistributionChart(ratingData) {
+    const ctx = document.getElementById('ratingDistributionChart').getContext('2d');
+    
+    const labels = ratingData.map(item => `${item.rating} ★`);
+    const counts = ratingData.map(item => item.count);
+    
+    if (ratingChart) {
+        ratingChart.destroy();
+    }
+    
+    ratingChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: counts,
+                backgroundColor: [
+                    '#dc3545', // 1 star - red
+                    '#fd7e14', // 2 stars - orange
+                    '#ffc107', // 3 stars - yellow
+                    '#28a745', // 4 stars - green
+                    '#007bff'  // 5 stars - blue
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+function updateTopVehiclesTable(topVehicles) {
+    const tbody = document.querySelector('#top-vehicles-table tbody');
+    tbody.innerHTML = '';
+    
+    topVehicles.forEach((vehicle, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><span class="badge bg-primary">${index + 1}</span></td>
+            <td><strong>${vehicle.license_plate}</strong></td>
+            <td>
+                <span class="text-warning">
+                    ${vehicle.avg_rating.toFixed(2)} 
+                    ${'★'.repeat(Math.round(vehicle.avg_rating))}
+                </span>
+            </td>
+            <td>${vehicle.rating_count}</td>
+            <td>
+                <a href="/vehicle/${vehicle.license_plate}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-eye me-1"></i>Zobacz
+                </a>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function refreshStats() {
+    loadDashboardStats();
+}
+</script>
+{% endblock %}

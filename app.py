@@ -306,6 +306,14 @@ def admin():
                            reported_comments=reported_comments,
                            blocked_vehicles=blocked_vehicles)
 
+@app.route('/dashboard')
+def dashboard():
+    if not is_admin():
+        flash('Brak uprawnień administratora!', 'danger')
+        return redirect(url_for('index'))
+    
+    return render_template('dashboard.html')
+
 
 # API Routes
 @app.route('/api/rate', methods=['POST'])
@@ -470,6 +478,83 @@ def api_admin_block_vehicle():
 
     status = 'zablokowany' if vehicle.is_blocked else 'odblokowany'
     return jsonify({'success': True, 'message': f'Pojazd został {status}'})
+
+@app.route('/api/admin/clear_reports', methods=['POST'])
+def api_admin_clear_reports():
+    if not is_admin():
+        return jsonify({'error': 'Brak uprawnień'}), 403
+
+    data = request.get_json()
+    comment_id = data.get('comment_id')
+
+    comment = Comment.query.get(comment_id)
+    if not comment:
+        return jsonify({'error': 'Komentarz nie został znaleziony'}), 404
+
+    # Clear reports for this comment
+    comment.reports = 0
+    # Delete all report entries for this comment
+    Report.query.filter_by(comment_id=comment_id).delete()
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Zgłoszenia zostały wyczyszczone'})
+
+@app.route('/api/admin/stats', methods=['GET'])
+def api_admin_stats():
+    if not is_admin():
+        return jsonify({'error': 'Brak uprawnień'}), 403
+
+    # Calculate comprehensive statistics
+    total_users = User.query.count()
+    total_vehicles = Vehicle.query.count()
+    total_ratings = Rating.query.count()
+    total_comments = Comment.query.count()
+    total_reports = Report.query.count()
+    blocked_vehicles = Vehicle.query.filter_by(is_blocked=True).count()
+    
+    # Monthly registration stats (last 6 months)
+    from sqlalchemy import extract, func
+    monthly_users = db.session.query(
+        extract('month', User.created_at).label('month'),
+        extract('year', User.created_at).label('year'),
+        func.count(User.id).label('count')
+    ).group_by(
+        extract('year', User.created_at),
+        extract('month', User.created_at)
+    ).order_by(
+        extract('year', User.created_at),
+        extract('month', User.created_at)
+    ).limit(6).all()
+    
+    # Top rated vehicles
+    top_vehicles = db.session.query(
+        Vehicle.license_plate,
+        func.avg(Rating.rating).label('avg_rating'),
+        func.count(Rating.id).label('rating_count')
+    ).join(Rating).group_by(Vehicle.id).having(
+        func.count(Rating.id) >= 3
+    ).order_by(func.avg(Rating.rating).desc()).limit(10).all()
+    
+    # Rating distribution
+    rating_distribution = db.session.query(
+        Rating.rating,
+        func.count(Rating.id).label('count')
+    ).group_by(Rating.rating).order_by(Rating.rating).all()
+
+    return jsonify({
+        'success': True,
+        'stats': {
+            'total_users': total_users,
+            'total_vehicles': total_vehicles,
+            'total_ratings': total_ratings,
+            'total_comments': total_comments,
+            'total_reports': total_reports,
+            'blocked_vehicles': blocked_vehicles,
+            'monthly_users': [{'month': row.month, 'year': row.year, 'count': row.count} for row in monthly_users],
+            'top_vehicles': [{'license_plate': row.license_plate, 'avg_rating': float(row.avg_rating), 'rating_count': row.rating_count} for row in top_vehicles],
+            'rating_distribution': [{'rating': row.rating, 'count': row.count} for row in rating_distribution]
+        }
+    })
 
 
 @app.route('/api/delete_my_comment', methods=['POST'])
