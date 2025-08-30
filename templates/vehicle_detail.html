@@ -13,6 +13,12 @@
                         {% if vehicle.is_blocked %}
                             <span class="badge bg-danger ms-2">Zablokowany</span>
                         {% endif %}
+                        {% if session.user_id %}
+                        <button id="favoriteBtn" class="btn btn-sm btn-outline-warning ms-2" onclick="toggleFavorite()" style="display: none;">
+                            <i class="fas fa-heart me-1"></i>
+                            <span id="favoriteText">Dodaj do ulubionych</span>
+                        </button>
+                        {% endif %}
                     </h2>
                     {% if session.user_id and get_current_user().is_admin %}
                         <button class="btn btn-sm btn-outline-warning" onclick="toggleBlockVehicle('{{ vehicle.license_plate }}')">
