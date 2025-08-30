@@ -13,9 +13,9 @@
                 </h2>
             </div>
             <div class="card-body">
-                <div class="alert alert-info">
+                <div class="alert alert-info" id="location-status">
                     <i class="fas fa-info-circle me-2"></i>
-                    Mapa pokazuje aktualne natężenie ruchu w Warszawie. Dane są aktualizowane automatycznie co 5 minut.
+                    <span id="location-text">Mapa pokazuje aktualne natężenie ruchu. Dane są aktualizowane automatycznie co 5 minut.</span>
                 </div>
             </div>
         </div>
@@ -126,6 +126,9 @@
 let mainTrafficMap;
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Update location status
+    updateLocationStatus();
+    
     // Initialize main traffic map
     mainTrafficMap = new TrafficMap('main-traffic-map', {
         zoom: 12
@@ -135,6 +138,29 @@ document.addEventListener('DOMContentLoaded', function() {
     updateLastUpdateTime();
     setInterval(updateLastUpdateTime, 60000); // Update every minute
 });
+
+function updateLocationStatus() {
+    const locationText = document.getElementById('location-text');
+    const locationStatus = document.getElementById('location-status');
+    
+    if (navigator.geolocation) {
+        locationText.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Pobieranie Twojej lokalizacji...';
+        
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                locationText.innerHTML = '<i class="fas fa-map-marker-alt me-2"></i>Mapa pokazuje ruch w Twojej okolicy. Dane aktualizowane co 5 minut.';
+                locationStatus.className = 'alert alert-success';
+            },
+            function(error) {
+                locationText.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Nie można pobrać lokalizacji. Używana domyślna lokalizacja.';
+                locationStatus.className = 'alert alert-warning';
+            }
+        );
+    } else {
+        locationText.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Geolokalizacja nie jest obsługiwana. Używana domyślna lokalizacja.';
+        locationStatus.className = 'alert alert-warning';
+    }
+}
 
 function refreshMainTrafficMap() {
     if (mainTrafficMap) {
