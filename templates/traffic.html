@@ -1,5 +1,9 @@
-{% extends "base.html" %} {% block title %}Mapa ruchu - Oceny Kierowców{%
-endblock %} {% block content %}
+
+{% extends "base.html" %}
+
+{% block title %}Mapa ruchu - Oceny Kierowców{% endblock %}
+
+{% block content %}
 <div class="row">
     <div class="col-12">
         <div class="card">
@@ -11,65 +15,28 @@ endblock %} {% block content %}
             <div class="card-body">
                 <div class="alert alert-info" id="location-status">
                     <i class="fas fa-info-circle me-2"></i>
-                    <span id="location-text"
-                        >Mapa pokazuje aktualne natężenie ruchu. Dane są
-                        aktualizowane automatycznie co 5 minut.</span
-                    >
+                    <span id="location-text">Mapa pokazuje aktualne natężenie ruchu. Dane są aktualizowane automatycznie co 5 minut.</span>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card-body">
-    <div class="mb-3">
-        <div class="d-flex justify-content-between">
-            <span><span style="color: #28a745">●</span> Płynny</span>
-            <span class="badge bg-success" id="smooth-count"
-                >{{ traffic_data.smooth_percentage }}%</span
-            >
-        </div>
-    </div>
-    <div class="mb-3">
-        <div class="d-flex justify-content-between">
-            <span><span style="color: #ffc107">●</span> Umiarkowany</span>
-            <span class="badge bg-warning" id="moderate-count"
-                >{{ traffic_data.moderate_percentage }}%</span
-            >
-        </div>
-    </div>
-    <div class="mb-3">
-        <div class="d-flex justify-content-between">
-            <span><span style="color: #fd7e14">●</span> Intensywny</span>
-            <span class="badge bg-warning" id="heavy-count"
-                >{{ traffic_data.heavy_percentage }}%</span
-            >
-        </div>
-    </div>
-    <div class="mb-3">
-        <div class="d-flex justify-content-between">
-            <span><span style="color: #dc3545">●</span> Korek</span>
-            <span class="badge bg-danger" id="jam-count"
-                >{{ traffic_data.jam_percentage }}%</span
-            >
-        </div>
-    </div>
-</div>
+
+
+
 
 <div class="row mt-4">
     <div class="col-lg-9">
         <div class="card">
             <div class="card-body p-0">
-                <div style="height: 600px; width: 100%">
-                    <div
-                        id="main-traffic-map"
-                        style="height: 100%; width: 100%"
-                    ></div>
+                <div style="height: 600px; width: 100%;">
+                    <div id="main-traffic-map" style="height: 100%; width: 100%;"></div>
                 </div>
             </div>
         </div>
     </div>
-
+    
     <div class="col-lg-3">
         <div class="card">
             <div class="card-header">
@@ -80,110 +47,74 @@ endblock %} {% block content %}
             <div class="card-body">
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
-                        <span
-                            ><span style="color: #28a745">●</span> Płynny</span
-                        >
-                        <span class="badge bg-success" id="smooth-count"
-                            >25%</span
-                        >
+                        <span><span style="color: #28a745;">●</span> Płynny</span>
+                        <span class="badge bg-success" id="smooth-count">25%</span>
                     </div>
                 </div>
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
-                        <span
-                            ><span style="color: #ffc107">●</span>
-                            Umiarkowany</span
-                        >
-                        <span class="badge bg-warning" id="moderate-count"
-                            >35%</span
-                        >
+                        <span><span style="color: #ffc107;">●</span> Umiarkowany</span>
+                        <span class="badge bg-warning" id="moderate-count">35%</span>
                     </div>
                 </div>
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
-                        <span
-                            ><span style="color: #fd7e14">●</span>
-                            Intensywny</span
-                        >
-                        <span class="badge bg-warning" id="heavy-count"
-                            >25%</span
-                        >
+                        <span><span style="color: #fd7e14;">●</span> Intensywny</span>
+                        <span class="badge bg-warning" id="heavy-count">25%</span>
                     </div>
                 </div>
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
-                        <span><span style="color: #dc3545">●</span> Korek</span>
+                        <span><span style="color: #dc3545;">●</span> Korek</span>
                         <span class="badge bg-danger" id="jam-count">15%</span>
                     </div>
                 </div>
-
-                <hr />
-
+                
+                <hr>
+                
                 <div class="text-center">
                     <h6>Ostatnia aktualizacja</h6>
                     <p class="text-muted small" id="last-update">--:--:--</p>
-                    <button
-                        class="btn btn-primary btn-sm"
-                        onclick="refreshMainTrafficMap()"
-                    >
+                    <button class="btn btn-primary btn-sm" onclick="refreshMainTrafficMap()">
                         <i class="fas fa-sync me-1"></i>Odśwież
                     </button>
                 </div>
             </div>
         </div>
-
+        
         <div class="card mt-3">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-exclamation-triangle me-2"></i>Aktywne
-                    zakłócenia
+                    <i class="fas fa-exclamation-triangle me-2"></i>Aktywne zakłócenia
                 </h5>
             </div>
             <div class="card-body">
                 <div class="list-group list-group-flush">
-                    <div
-                        class="list-group-item bg-transparent border-0 px-0 py-2"
-                    >
-                        <div
-                            class="d-flex justify-content-between align-items-start"
-                        >
+                    <div class="list-group-item bg-transparent border-0 px-0 py-2">
+                        <div class="d-flex justify-content-between align-items-start">
                             <div>
                                 <h6 class="mb-1">Aleje Jerozolimskie</h6>
-                                <p class="mb-1 small">
-                                    Intensywny ruch w kierunku centrum
-                                </p>
+                                <p class="mb-1 small">Intensywny ruch w kierunku centrum</p>
                                 <small class="text-muted">5 min temu</small>
                             </div>
                             <span class="badge bg-danger">Korek</span>
                         </div>
                     </div>
-                    <div
-                        class="list-group-item bg-transparent border-0 px-0 py-2"
-                    >
-                        <div
-                            class="d-flex justify-content-between align-items-start"
-                        >
+                    <div class="list-group-item bg-transparent border-0 px-0 py-2">
+                        <div class="d-flex justify-content-between align-items-start">
                             <div>
                                 <h6 class="mb-1">Marszałkowska</h6>
-                                <p class="mb-1 small">
-                                    Utrudnienia na wysokości Centralnego
-                                </p>
+                                <p class="mb-1 small">Utrudnienia na wysokości Centralnego</p>
                                 <small class="text-muted">12 min temu</small>
                             </div>
                             <span class="badge bg-warning">Intensywny</span>
                         </div>
                     </div>
-                    <div
-                        class="list-group-item bg-transparent border-0 px-0 py-2"
-                    >
-                        <div
-                            class="d-flex justify-content-between align-items-start"
-                        >
+                    <div class="list-group-item bg-transparent border-0 px-0 py-2">
+                        <div class="d-flex justify-content-between align-items-start">
                             <div>
                                 <h6 class="mb-1">Wisłostrada</h6>
-                                <p class="mb-1 small">
-                                    Płynny ruch w obu kierunkach
-                                </p>
+                                <p class="mb-1 small">Płynny ruch w obu kierunkach</p>
                                 <small class="text-muted">3 min temu</small>
                             </div>
                             <span class="badge bg-success">Płynny</span>
@@ -196,63 +127,59 @@ endblock %} {% block content %}
 </div>
 
 <script>
-    let mainTrafficMap;
+let mainTrafficMap;
 
-    document.addEventListener("DOMContentLoaded", function () {
-        // Update location status
-        updateLocationStatus();
-
-        // Initialize main traffic map
-        mainTrafficMap = new TrafficMap("main-traffic-map", {
-            zoom: 12,
-        });
-
-        // Update last update time
-        updateLastUpdateTime();
-        setInterval(updateLastUpdateTime, 60000); // Update every minute
+document.addEventListener('DOMContentLoaded', function() {
+    // Update location status
+    updateLocationStatus();
+    
+    // Initialize main traffic map
+    mainTrafficMap = new TrafficMap('main-traffic-map', {
+        zoom: 12
     });
+    
+    // Update last update time
+    updateLastUpdateTime();
+    setInterval(updateLastUpdateTime, 60000); // Update every minute
+});
 
-    function updateLocationStatus() {
-        const locationText = document.getElementById("location-text");
-        const locationStatus = document.getElementById("location-status");
-
-        if (navigator.geolocation) {
-            locationText.innerHTML =
-                '<i class="fas fa-spinner fa-spin me-2"></i>Pobieranie Twojej lokalizacji...';
-
-            navigator.geolocation.getCurrentPosition(
-                function (position) {
-                    locationText.innerHTML =
-                        '<i class="fas fa-map-marker-alt me-2"></i>Mapa pokazuje ruch w Twojej okolicy. Dane aktualizowane co 5 minut.';
-                    locationStatus.className = "alert alert-success";
-                },
-                function (error) {
-                    locationText.innerHTML =
-                        '<i class="fas fa-exclamation-triangle me-2"></i>Nie można pobrać lokalizacji. Używana domyślna lokalizacja.';
-                    locationStatus.className = "alert alert-warning";
-                },
-            );
-        } else {
-            locationText.innerHTML =
-                '<i class="fas fa-exclamation-triangle me-2"></i>Geolokalizacja nie jest obsługiwana. Używana domyślna lokalizacja.';
-            locationStatus.className = "alert alert-warning";
-        }
+function updateLocationStatus() {
+    const locationText = document.getElementById('location-text');
+    const locationStatus = document.getElementById('location-status');
+    
+    if (navigator.geolocation) {
+        locationText.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Pobieranie Twojej lokalizacji...';
+        
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                locationText.innerHTML = '<i class="fas fa-map-marker-alt me-2"></i>Mapa pokazuje ruch w Twojej okolicy. Dane aktualizowane co 5 minut.';
+                locationStatus.className = 'alert alert-success';
+            },
+            function(error) {
+                locationText.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Nie można pobrać lokalizacji. Używana domyślna lokalizacja.';
+                locationStatus.className = 'alert alert-warning';
+            }
+        );
+    } else {
+        locationText.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Geolokalizacja nie jest obsługiwana. Używana domyślna lokalizacja.';
+        locationStatus.className = 'alert alert-warning';
     }
+}
 
-    function refreshMainTrafficMap() {
-        if (mainTrafficMap) {
-            mainTrafficMap.refreshTrafficData();
-            updateLastUpdateTime();
-        }
+function refreshMainTrafficMap() {
+    if (mainTrafficMap) {
+        mainTrafficMap.refreshTrafficData();
+        updateLastUpdateTime();
     }
+}
 
-    function updateLastUpdateTime() {
-        const now = new Date();
-        const timeString = now.toLocaleTimeString("pl-PL");
-        const lastUpdateElement = document.getElementById("last-update");
-        if (lastUpdateElement) {
-            lastUpdateElement.textContent = timeString;
-        }
+function updateLastUpdateTime() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('pl-PL');
+    const lastUpdateElement = document.getElementById('last-update');
+    if (lastUpdateElement) {
+        lastUpdateElement.textContent = timeString;
     }
+}
 </script>
 {% endblock %}

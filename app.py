@@ -29,7 +29,8 @@ db = SQLAlchemy(model_class=Base)
 # Create the app
 app = Flask(__name__)
 # Configuration from environment variables
-app.config['SECRET_KEY'] = os.environ.get("SESSION_SECRET", "dev-secret-key-change-in-production")
+app.config['SECRET_KEY'] = os.environ.get(
+    "SESSION_SECRET", "dev-secret-key-change-in-production")
 app.config['FLASK_ENV'] = os.environ.get("FLASK_ENV", "development")
 app.config['DEBUG'] = os.environ.get("FLASK_DEBUG", "True").lower() == "true"
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -51,8 +52,6 @@ else:
         "pool_recycle": 300,
         "pool_pre_ping": True,
     }
-
-    
 
 from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
 
@@ -81,8 +80,8 @@ def is_admin():
     user = get_current_user()
     return user and user.is_admin
 
-tomtom_api_key = os.getenv("TOMTOM_API_KEY")
 
+tomtom_api_key = os.getenv("TOMTOM_API_KEY")
 
 
 # Initialize authentication system
@@ -311,6 +310,7 @@ def admin():
                            reported_comments=reported_comments,
                            blocked_vehicles=blocked_vehicles)
 
+
 @app.route('/dashboard')
 def dashboard():
     if not is_admin():
@@ -375,6 +375,7 @@ def api_rate():
         user_id=session['user_id']).first()
     if not user_stats:
         user_stats = UserStatistics(user_id=session['user_id'])
+
         db.session.add(user_stats)
         db.session.commit()
     user_stats.update_statistics()
@@ -491,6 +492,7 @@ def api_admin_block_vehicle():
     status = 'zablokowany' if vehicle.is_blocked else 'odblokowany'
     return jsonify({'success': True, 'message': f'Pojazd został {status}'})
 
+
 @app.route('/api/admin/clear_reports', methods=['POST'])
 def api_admin_clear_reports():
     if not is_admin():
@@ -509,7 +511,11 @@ def api_admin_clear_reports():
     Report.query.filter_by(comment_id=comment_id).delete()
     db.session.commit()
 
-    return jsonify({'success': True, 'message': 'Zgłoszenia zostały wyczyszczone'})
+    return jsonify({
+        'success': True,
+        'message': 'Zgłoszenia zostały wyczyszczone'
+    })
+
 
 @app.route('/api/admin/stats', methods=['GET'])
 def api_admin_stats():
@@ -529,42 +535,55 @@ def api_admin_stats():
     monthly_users = db.session.query(
         extract('month', User.created_at).label('month'),
         extract('year', User.created_at).label('year'),
-        func.count(User.id).label('count')
-    ).group_by(
-        extract('year', User.created_at),
-        extract('month', User.created_at)
-    ).order_by(
-        extract('year', User.created_at),
-        extract('month', User.created_at)
-    ).limit(6).all()
+        func.count(User.id).label('count')).group_by(
+            extract('year', User.created_at),
+            extract('month', User.created_at)).order_by(
+                extract('year', User.created_at),
+                extract('month', User.created_at)).limit(6).all()
 
     # Top rated vehicles
     top_vehicles = db.session.query(
         Vehicle.license_plate,
         func.avg(Rating.rating).label('avg_rating'),
-        func.count(Rating.id).label('rating_count')
-    ).join(Rating).group_by(Vehicle.id).having(
-        func.count(Rating.id) >= 3
-    ).order_by(func.avg(Rating.rating).desc()).limit(10).all()
+        func.count(Rating.id).label('rating_count')).join(Rating).group_by(
+            Vehicle.id).having(func.count(Rating.id) >= 3).order_by(
+                func.avg(Rating.rating).desc()).limit(10).all()
 
     # Rating distribution
     rating_distribution = db.session.query(
         Rating.rating,
-        func.count(Rating.id).label('count')
-    ).group_by(Rating.rating).order_by(Rating.rating).all()
+        func.count(Rating.id).label('count')).group_by(Rating.rating).order_by(
+            Rating.rating).all()
 
     return jsonify({
         'success': True,
         'stats': {
-            'total_users': total_users,
-            'total_vehicles': total_vehicles,
-            'total_ratings': total_ratings,
-            'total_comments': total_comments,
-            'total_reports': total_reports,
-            'blocked_vehicles': blocked_vehicles,
-            'monthly_users': [{'month': row.month, 'year': row.year, 'count': row.count} for row in monthly_users],
-            'top_vehicles': [{'license_plate': row.license_plate, 'avg_rating': float(row.avg_rating), 'rating_count': row.rating_count} for row in top_vehicles],
-            'rating_distribution': [{'rating': row.rating, 'count': row.count} for row in rating_distribution]
+            'total_users':
+            total_users,
+            'total_vehicles':
+            total_vehicles,
+            'total_ratings':
+            total_ratings,
+            'total_comments':
+            total_comments,
+            'total_reports':
+            total_reports,
+            'blocked_vehicles':
+            blocked_vehicles,
+            'monthly_users': [{
+                'month': row.month,
+                'year': row.year,
+                'count': row.count
+            } for row in monthly_users],
+            'top_vehicles': [{
+                'license_plate': row.license_plate,
+                'avg_rating': float(row.avg_rating),
+                'rating_count': row.rating_count
+            } for row in top_vehicles],
+            'rating_distribution': [{
+                'rating': row.rating,
+                'count': row.count
+            } for row in rating_distribution]
         }
     })
 
@@ -593,7 +612,8 @@ def api_delete_my_comment():
 
 @app.route('/map')
 def map_view():
-    incidents = Incident.query.order_by(Incident.created_at.desc()).limit(50).all()
+    incidents = Incident.query.order_by(
+        Incident.created_at.desc()).limit(50).all()
     return render_template('map.html', incidents=incidents)
 
 
@@ -765,6 +785,7 @@ def api_vote_comment():
 
     return jsonify({'success': True, 'message': 'Głos został zapisany'})
 
+
 @app.route('/profile')
 def profile():
     if not is_logged_in():
@@ -777,9 +798,12 @@ def profile():
         return redirect(url_for('login'))
 
     # Get user's activity
-    user_ratings = Rating.query.filter_by(user_id=user.id).order_by(Rating.created_at.desc()).limit(10).all()
-    user_comments = Comment.query.filter_by(user_id=user.id).order_by(Comment.created_at.desc()).limit(10).all()
-    user_favorites = Favorite.query.filter_by(user_id=user.id).order_by(Favorite.created_at.desc()).all()
+    user_ratings = Rating.query.filter_by(user_id=user.id).order_by(
+        Rating.created_at.desc()).limit(10).all()
+    user_comments = Comment.query.filter_by(user_id=user.id).order_by(
+        Comment.created_at.desc()).limit(10).all()
+    user_favorites = Favorite.query.filter_by(user_id=user.id).order_by(
+        Favorite.created_at.desc()).all()
 
     # Get user statistics
     user_stats = UserStatistics.query.filter_by(user_id=user.id).first()
@@ -789,12 +813,13 @@ def profile():
         db.session.commit()
         user_stats.update_statistics()
 
-    return render_template('profile.html', 
-                         user=user, 
-                         user_ratings=user_ratings,
-                         user_comments=user_comments,
-                         user_favorites=user_favorites,
-                         user_stats=user_stats)
+    return render_template('profile.html',
+                           user=user,
+                           user_ratings=user_ratings,
+                           user_comments=user_comments,
+                           user_favorites=user_favorites,
+                           user_stats=user_stats)
+
 
 @app.route('/api/favorite', methods=['POST'])
 def api_add_favorite():
@@ -818,12 +843,11 @@ def api_add_favorite():
 
     # Check if already favorited
     existing_favorite = Favorite.query.filter_by(
-        user_id=session['user_id'],
-        vehicle_id=vehicle.id
-    ).first()
+        user_id=session['user_id'], vehicle_id=vehicle.id).first()
 
     if existing_favorite:
-        return jsonify({'error': 'Ten pojazd jest już w Twoich ulubionych'}), 400
+        return jsonify({'error':
+                        'Ten pojazd jest już w Twoich ulubionych'}), 400
 
     # Create favorite
     favorite = Favorite()
@@ -834,7 +858,11 @@ def api_add_favorite():
     db.session.add(favorite)
     db.session.commit()
 
-    return jsonify({'success': True, 'message': 'Pojazd został dodany do ulubionych'})
+    return jsonify({
+        'success': True,
+        'message': 'Pojazd został dodany do ulubionych'
+    })
+
 
 @app.route('/api/favorite', methods=['DELETE'])
 def api_remove_favorite():
@@ -848,35 +876,36 @@ def api_remove_favorite():
     if not vehicle:
         return jsonify({'error': 'Pojazd nie został znaleziony'}), 404
 
-    favorite = Favorite.query.filter_by(
-        user_id=session['user_id'],
-        vehicle_id=vehicle.id
-    ).first()
+    favorite = Favorite.query.filter_by(user_id=session['user_id'],
+                                        vehicle_id=vehicle.id).first()
 
     if not favorite:
-        return jsonify({'error': 'Ten pojazd nie jest w Twoich ulubionych'}), 404
+        return jsonify({'error':
+                        'Ten pojazd nie jest w Twoich ulubionych'}), 404
 
     db.session.delete(favorite)
     db.session.commit()
 
-    return jsonify({'success': True, 'message': 'Pojazd został usunięty z ulubionych'})
+    return jsonify({
+        'success': True,
+        'message': 'Pojazd został usunięty z ulubionych'
+    })
+
 
 @app.route('/api/favorite/<license_plate>', methods=['GET'])
 def api_check_favorite(license_plate):
     if not is_logged_in():
         return jsonify({'is_favorite': False})
 
-    vehicle = Vehicle.query.filter_by(license_plate=license_plate.upper()).first()
+    vehicle = Vehicle.query.filter_by(
+        license_plate=license_plate.upper()).first()
     if not vehicle:
         return jsonify({'is_favorite': False})
 
-    favorite = Favorite.query.filter_by(
-        user_id=session['user_id'],
-        vehicle_id=vehicle.id
-    ).first()
+    favorite = Favorite.query.filter_by(user_id=session['user_id'],
+                                        vehicle_id=vehicle.id).first()
 
     return jsonify({'is_favorite': favorite is not None})
-
 
 
 @app.route('/manifest.json')
