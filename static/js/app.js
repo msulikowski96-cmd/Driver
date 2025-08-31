@@ -85,6 +85,7 @@ async function submitRating(licensePlate, rating) {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 license_plate: licensePlate,
                 rating: rating
@@ -164,6 +165,7 @@ async function submitComment(licensePlate) {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 license_plate: licensePlate,
                 comment: commentText
@@ -219,6 +221,7 @@ async function voteComment(commentId, voteType) {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 comment_id: commentId,
                 vote_type: voteType
@@ -303,6 +306,7 @@ async function toggleVehicleBlock(licensePlate) {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 license_plate: licensePlate
             })
@@ -342,6 +346,7 @@ async function deleteComment(commentId) {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 comment_id: commentId
             })
@@ -382,6 +387,7 @@ async function deleteMyComment(commentId) {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 comment_id: commentId
             })
@@ -422,6 +428,7 @@ async function reportComment(commentId) {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 comment_id: commentId
             })
@@ -479,6 +486,7 @@ async function adminDeleteComment(commentId) {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 comment_id: commentId
             })
@@ -600,6 +608,7 @@ async function clearReports(commentId) {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 comment_id: commentId
             })
@@ -639,6 +648,7 @@ async function addIncident(licensePlate, latitude, longitude, type, description,
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 license_plate: licensePlate,
                 latitude: latitude,
