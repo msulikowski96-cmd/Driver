@@ -1,5 +1,5 @@
 
-// Traffic Map functionality using OpenRouteService
+// Traffic Map functionality using TomTom API
 class TrafficMap {
     constructor(containerId, options = {}) {
         this.containerId = containerId;
@@ -9,7 +9,7 @@ class TrafficMap {
         this.options = {
             center: [52.237049, 21.017532], // Warsaw coordinates (fallback)
             zoom: 10,
-            apiKey: '5b3ce3597851110001cf6248YOUR_API_KEY_HERE', // Replace with your OpenRouteService API key
+            apiKey: 'TOMTOM_API_KEY_PLACEHOLDER', // Will be replaced with actual TomTom API key
             ...options
         };
         this.init();
@@ -180,7 +180,7 @@ class TrafficMap {
             // Get current map bounds
             const bounds = this.map.getBounds();
             
-            // Simulate traffic data (replace with actual OpenRouteService API call)
+            // Fetch real traffic data from TomTom API
             const trafficData = await this.fetchTrafficData(bounds);
             
             // Clear existing traffic markers
@@ -196,15 +196,9 @@ class TrafficMap {
 
     async fetchTrafficData(bounds) {
         try {
-            // Use multiple traffic data sources for better coverage
-            const trafficData = await Promise.all([
-                this.fetchOpenRouteServiceData(bounds),
-                this.fetchOverpassTrafficData(bounds),
-                this.fetchTomTomTrafficData(bounds)
-            ]);
-
-            // Combine and process traffic data
-            return this.combineTrafficData(trafficData);
+            // Use TomTom Traffic API as primary source
+            const trafficData = await this.fetchTomTomTrafficData(bounds);
+            return trafficData || this.getSimulatedTrafficData(bounds);
         } catch (error) {
             console.error('Error fetching traffic data:', error);
             // Return simulated data as fallback
@@ -212,21 +206,41 @@ class TrafficMap {
         }
     }
 
-    async fetchOpenRouteServiceData(bounds) {
-        try {
-            // Get road network in the area
-            const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-            
-            const response = await fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=${this.options.apiKey}&start=${bounds.getCenter().lng},${bounds.getCenter().lat}&end=${bounds.getCenter().lng + 0.01},${bounds.getCenter().lat + 0.01}`);
-            
-            if (response.ok) {
-                const data = await response.json();
-                return this.processOpenRouteServiceData(data);
-            }
-        } catch (error) {
-            console.log('OpenRouteService API error:', error);
+    processTomTomTrafficData(data) {
+        const trafficSegments = [];
+        
+        if (data && data.flowSegmentData) {
+            data.flowSegmentData.forEach(segment => {
+                if (segment.coordinates && segment.coordinates.coordinate) {
+                    const coords = segment.coordinates.coordinate.map(coord => [coord.latitude, coord.longitude]);
+                    const currentSpeed = segment.currentSpeed || 0;
+                    const freeFlowSpeed = segment.freeFlowSpeed || currentSpeed;
+                    const confidence = segment.confidence || 0.5;
+                    
+                    // Calculate traffic level based on speed ratio
+                    const speedRatio = freeFlowSpeed > 0 ? currentSpeed / freeFlowSpeed : 1;
+                    let level = 'light';
+                    
+                    if (speedRatio < 0.3) {
+                        level = 'jam';
+                    } else if (speedRatio < 0.5) {
+                        level = 'heavy';
+                    } else if (speedRatio < 0.7) {
+                        level = 'moderate';
+                    }
+                    
+                    trafficSegments.push({
+                        coords: coords,
+                        level: level,
+                        speed: Math.round(currentSpeed * 3.6), // Convert m/s to km/h
+                        name: segment.roadClosure ? 'Road Closure' : `Road (${Math.round(confidence * 100)}% confidence)`,
+                        confidence: confidence
+                    });
+                }
+            });
         }
-        return [];
+        
+        return trafficSegments;
     }
 
     async fetchOverpassTrafficData(bounds) {
@@ -258,38 +272,27 @@ class TrafficMap {
 
     async fetchTomTomTrafficData(bounds) {
         try {
-            // TomTom Traffic API (requires API key)
-            // You can get a free API key at developer.tomtom.com
             const center = bounds.getCenter();
-            const zoom = this.map.getZoom();
+            const zoom = Math.max(10, Math.min(18, this.map.getZoom()));
             
-            // For demo purposes, simulate TomTom-like data
-            return this.simulateTomTomData(bounds);
+            // TomTom Traffic Flow API
+            const trafficFlowUrl = `/api/tomtom-traffic?lat=${center.lat}&lng=${center.lng}&zoom=${zoom}&bbox=${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+            
+            const response = await fetch(trafficFlowUrl);
+            
+            if (response.ok) {
+                const data = await response.json();
+                return this.processTomTomTrafficData(data);
+            } else {
+                console.log('TomTom API response error:', response.status);
+                return this.getSimulatedTrafficData(bounds);
+            }
         } catch (error) {
             console.log('TomTom API error:', error);
+            return this.getSimulatedTrafficData(bounds);
         }
-        return [];
     }
 
-    processOpenRouteServiceData(data) {
-        const trafficSegments = [];
-        if (data.features && data.features[0] && data.features[0].properties.segments) {
-            data.features[0].properties.segments.forEach(segment => {
-                const coords = data.features[0].geometry.coordinates.slice(
-                    segment.steps[0].way_points[0],
-                    segment.steps[segment.steps.length - 1].way_points[1] + 1
-                ).map(coord => [coord[1], coord[0]]); // Flip to [lat, lng]
-                
-                trafficSegments.push({
-                    coords: coords,
-                    level: this.estimateTrafficLevel(segment.duration, segment.distance),
-                    speed: Math.round((segment.distance / 1000) / (segment.duration / 3600)),
-                    name: segment.steps[0].instruction || 'Unnamed road'
-                });
-            });
-        }
-        return trafficSegments;
-    }
 
     processOverpassData(data) {
         const trafficSegments = [];

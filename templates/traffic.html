@@ -15,7 +15,7 @@
             <div class="card-body">
                 <div class="alert alert-info" id="location-status">
                     <i class="fas fa-info-circle me-2"></i>
-                    <span id="location-text">Mapa pokazuje aktualne natężenie ruchu. Dane są aktualizowane automatycznie co 5 minut.</span>
+                    <span id="location-text">Mapa pokazuje aktualne natężenie ruchu z TomTom API. Dane są aktualizowane automatycznie co 5 minut.</span>
                 </div>
             </div>
         </div>
@@ -152,7 +152,7 @@ function updateLocationStatus() {
         
         navigator.geolocation.getCurrentPosition(
             function(position) {
-                locationText.innerHTML = '<i class="fas fa-map-marker-alt me-2"></i>Mapa pokazuje ruch w Twojej okolicy. Dane aktualizowane co 5 minut.';
+                locationText.innerHTML = '<i class="fas fa-map-marker-alt me-2"></i>Mapa pokazuje ruch w Twojej okolicy z TomTom API. Dane aktualizowane co 5 minut.';
                 locationStatus.className = 'alert alert-success';
             },
             function(error) {

@@ -4,6 +4,16 @@
 
 The Driver Rating Application is a Flask-based web platform that allows users to rate and comment on drivers based on their license plates. The system provides a community-driven approach to tracking driver behavior with features for user authentication, vehicle rating (1-5 stars), commenting, and administrative moderation. The application includes a ranking system to showcase the best and worst rated drivers, search functionality, and content moderation tools to maintain a safe and constructive environment.
 
+## Recent Changes
+
+### 2025-08-31: Migration to TomTom API
+- Replaced OpenRoute Services with TomTom Traffic API for traffic data
+- Added secure API proxy endpoint `/api/tomtom-traffic` in Flask backend
+- Updated traffic.js to use TomTom API instead of OpenRoute Services
+- Added requests library dependency for TomTom API integration
+- Enhanced traffic data processing with TomTom-specific data structure
+- Improved traffic level estimation based on TomTom speed ratios
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -52,6 +62,8 @@ Preferred communication style: Simple, everyday language.
 - **Flask**: Web framework for Python applications
 - **SQLAlchemy**: ORM for database operations and model definitions
 - **Werkzeug**: WSGI utilities including password hashing and proxy handling
+- **Requests**: HTTP library for TomTom API integration
+- **TomTom API**: Traffic data service for real-time traffic information
 - **Bootstrap 5**: CSS framework for responsive design (CDN)
 - **Font Awesome 6**: Icon library for UI elements (CDN)
 - **SQLite**: Database engine for data persistence

@@ -588,6 +588,53 @@ def api_admin_stats():
     })
 
 
+@app.route('/api/tomtom-traffic', methods=['GET'])
+def api_tomtom_traffic():
+    """Proxy endpoint for TomTom Traffic API to handle CORS and API key security"""
+    try:
+        lat = request.args.get('lat', type=float)
+        lng = request.args.get('lng', type=float)
+        zoom = request.args.get('zoom', type=int, default=12)
+        bbox = request.args.get('bbox', '')
+        
+        if not lat or not lng:
+            return jsonify({'error': 'Missing latitude or longitude'}), 400
+            
+        # TomTom Traffic Flow API endpoint
+        tomtom_url = f"https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/{zoom}/{lat},{lng}.json"
+        
+        import requests
+        headers = {
+            'User-Agent': 'Driver-Rating-App/1.0'
+        }
+        params = {
+            'key': tomtom_api_key,
+            'unit': 'KMPH'
+        }
+        
+        # Add bounding box if provided for better traffic coverage
+        if bbox:
+            bbox_coords = bbox.split(',')
+            if len(bbox_coords) == 4:
+                # TomTom uses different bbox format, but for flow data we use point-based requests
+                pass
+        
+        response = requests.get(tomtom_url, headers=headers, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify(response.json())
+        else:
+            print(f"TomTom API error: {response.status_code} - {response.text}")
+            return jsonify({
+                'error': 'TomTom API error',
+                'status_code': response.status_code
+            }), response.status_code
+            
+    except Exception as e:
+        print(f"TomTom proxy error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 @app.route('/api/delete_my_comment', methods=['POST'])
 def api_delete_my_comment():
     if not is_logged_in():
