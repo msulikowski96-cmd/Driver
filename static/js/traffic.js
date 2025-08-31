@@ -209,33 +209,54 @@ class TrafficMap {
     processTomTomTrafficData(data) {
         const trafficSegments = [];
         
-        if (data && data.flowSegmentData) {
-            data.flowSegmentData.forEach(segment => {
-                if (segment.coordinates && segment.coordinates.coordinate) {
-                    const coords = segment.coordinates.coordinate.map(coord => [coord.latitude, coord.longitude]);
-                    const currentSpeed = segment.currentSpeed || 0;
-                    const freeFlowSpeed = segment.freeFlowSpeed || currentSpeed;
-                    const confidence = segment.confidence || 0.5;
+        if (data && data.incidents) {
+            data.incidents.forEach(incident => {
+                if (incident.geometry && incident.geometry.coordinates) {
+                    const coords = [];
                     
-                    // Calculate traffic level based on speed ratio
-                    const speedRatio = freeFlowSpeed > 0 ? currentSpeed / freeFlowSpeed : 1;
-                    let level = 'light';
-                    
-                    if (speedRatio < 0.3) {
-                        level = 'jam';
-                    } else if (speedRatio < 0.5) {
-                        level = 'heavy';
-                    } else if (speedRatio < 0.7) {
-                        level = 'moderate';
+                    // Handle different geometry types
+                    if (incident.geometry.type === 'Point') {
+                        const coord = incident.geometry.coordinates;
+                        coords.push([coord[1], coord[0]]); // Flip to [lat, lng]
+                        // Create a small line segment for display
+                        coords.push([coord[1] + 0.001, coord[0] + 0.001]);
+                    } else if (incident.geometry.type === 'LineString') {
+                        incident.geometry.coordinates.forEach(coord => {
+                            coords.push([coord[1], coord[0]]); // Flip to [lat, lng]
+                        });
                     }
                     
-                    trafficSegments.push({
-                        coords: coords,
-                        level: level,
-                        speed: Math.round(currentSpeed * 3.6), // Convert m/s to km/h
-                        name: segment.roadClosure ? 'Road Closure' : `Road (${Math.round(confidence * 100)}% confidence)`,
-                        confidence: confidence
-                    });
+                    // Determine traffic level based on incident severity
+                    let level = 'moderate';
+                    let speed = 30;
+                    
+                    if (incident.properties) {
+                        const severity = incident.properties.severity || 'MINOR';
+                        const delay = incident.properties.delay || 0;
+                        
+                        if (severity === 'CRITICAL' || delay > 1800) { // 30+ min delay
+                            level = 'jam';
+                            speed = 5;
+                        } else if (severity === 'MAJOR' || delay > 900) { // 15+ min delay
+                            level = 'heavy';
+                            speed = 15;
+                        } else if (severity === 'MODERATE' || delay > 300) { // 5+ min delay
+                            level = 'moderate';
+                            speed = 25;
+                        } else {
+                            level = 'light';
+                            speed = 45;
+                        }
+                        
+                        trafficSegments.push({
+                            coords: coords,
+                            level: level,
+                            speed: speed,
+                            name: incident.properties.description || 'Traffic Incident',
+                            severity: severity,
+                            delay: Math.round(delay / 60) // Convert to minutes
+                        });
+                    }
                 }
             });
         }
@@ -243,32 +264,6 @@ class TrafficMap {
         return trafficSegments;
     }
 
-    async fetchOverpassTrafficData(bounds) {
-        try {
-            // Query Overpass API for road data
-            const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
-            const query = `
-                [out:json][timeout:25];
-                (
-                  way["highway"~"^(motorway|trunk|primary|secondary)$"](${bbox});
-                );
-                out geom;
-            `;
-            
-            const response = await fetch('https://overpass-api.de/api/interpreter', {
-                method: 'POST',
-                body: query
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                return this.processOverpassData(data);
-            }
-        } catch (error) {
-            console.log('Overpass API error:', error);
-        }
-        return [];
-    }
 
     async fetchTomTomTrafficData(bounds) {
         try {
@@ -294,25 +289,6 @@ class TrafficMap {
     }
 
 
-    processOverpassData(data) {
-        const trafficSegments = [];
-        if (data.elements) {
-            data.elements.forEach(element => {
-                if (element.geometry && element.geometry.length > 1) {
-                    const coords = element.geometry.map(point => [point.lat, point.lon]);
-                    const roadType = element.tags.highway;
-                    
-                    trafficSegments.push({
-                        coords: coords,
-                        level: this.estimateTrafficByRoadType(roadType),
-                        speed: this.getSpeedByRoadType(roadType),
-                        name: element.tags.name || `${roadType} road`
-                    });
-                }
-            });
-        }
-        return trafficSegments;
-    }
 
     simulateTomTomData(bounds) {
         // Simulate realistic traffic data based on time of day and location
@@ -359,71 +335,8 @@ class TrafficMap {
         return segments;
     }
 
-    combineTrafficData(dataArrays) {
-        // Combine data from all sources and remove duplicates
-        const allData = dataArrays.flat();
-        const uniqueData = [];
-        
-        allData.forEach(segment => {
-            // Simple deduplication based on coordinates
-            const exists = uniqueData.find(existing => 
-                this.coordinatesMatch(existing.coords, segment.coords)
-            );
-            
-            if (!exists) {
-                uniqueData.push(segment);
-            }
-        });
-        
-        return uniqueData;
-    }
 
-    coordinatesMatch(coords1, coords2, tolerance = 0.001) {
-        if (coords1.length !== coords2.length) return false;
-        
-        for (let i = 0; i < coords1.length; i++) {
-            const dist = Math.abs(coords1[i][0] - coords2[i][0]) + Math.abs(coords1[i][1] - coords2[i][1]);
-            if (dist > tolerance) return false;
-        }
-        
-        return true;
-    }
 
-    estimateTrafficLevel(duration, distance) {
-        const avgSpeed = (distance / 1000) / (duration / 3600); // km/h
-        
-        if (avgSpeed < 15) return 'jam';
-        if (avgSpeed < 30) return 'heavy';
-        if (avgSpeed < 45) return 'moderate';
-        return 'light';
-    }
-
-    estimateTrafficByRoadType(roadType) {
-        const currentHour = new Date().getHours();
-        const isRushHour = (currentHour >= 7 && currentHour <= 9) || (currentHour >= 16 && currentHour <= 18);
-        
-        if (roadType === 'motorway' || roadType === 'trunk') {
-            return isRushHour ? 'heavy' : 'moderate';
-        } else if (roadType === 'primary') {
-            return isRushHour ? 'moderate' : 'light';
-        }
-        return 'light';
-    }
-
-    getSpeedByRoadType(roadType) {
-        const speeds = {
-            'motorway': 90,
-            'trunk': 70,
-            'primary': 50,
-            'secondary': 40
-        };
-        
-        const baseSpeed = speeds[roadType] || 30;
-        const currentHour = new Date().getHours();
-        const isRushHour = (currentHour >= 7 && currentHour <= 9) || (currentHour >= 16 && currentHour <= 18);
-        
-        return isRushHour ? Math.round(baseSpeed * 0.6) : baseSpeed;
-    }
 
     getSimulatedTrafficData(bounds) {
         // Enhanced fallback simulation based on current location

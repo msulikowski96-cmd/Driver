@@ -600,16 +600,15 @@ def api_tomtom_traffic():
         if not lat or not lng:
             return jsonify({'error': 'Missing latitude or longitude'}), 400
             
-        # TomTom Traffic Flow API endpoint
-        tomtom_url = f"https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/{zoom}/{lat},{lng}.json"
+        # TomTom Traffic Incidents API - simpler and more reliable
+        tomtom_url = f"https://api.tomtom.com/traffic/services/4/incidentDetails/s3/{lat},{lng},{lat + 0.01},{lng + 0.01}/10/-1/json"
         
         import requests
         headers = {
             'User-Agent': 'Driver-Rating-App/1.0'
         }
         params = {
-            'key': tomtom_api_key,
-            'unit': 'KMPH'
+            'key': tomtom_api_key
         }
         
         # Add bounding box if provided for better traffic coverage
