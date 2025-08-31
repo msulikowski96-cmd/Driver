@@ -210,54 +210,45 @@ class TrafficMap {
     processTomTomTrafficData(data) {
         const trafficSegments = [];
         
-        if (data && data.incidents) {
-            data.incidents.forEach(incident => {
-                if (incident.geometry && incident.geometry.coordinates) {
-                    const coords = [];
+        if (data && data.flowSegmentData) {
+            data.flowSegmentData.forEach(segment => {
+                if (segment.coordinates && segment.coordinates.coordinate) {
+                    const coords = segment.coordinates.coordinate.map(coord => [coord.latitude, coord.longitude]);
                     
-                    // Handle different geometry types
-                    if (incident.geometry.type === 'Point') {
-                        const coord = incident.geometry.coordinates;
-                        coords.push([coord[1], coord[0]]); // Flip to [lat, lng]
-                        // Create a small line segment for display
-                        coords.push([coord[1] + 0.001, coord[0] + 0.001]);
-                    } else if (incident.geometry.type === 'LineString') {
-                        incident.geometry.coordinates.forEach(coord => {
-                            coords.push([coord[1], coord[0]]); // Flip to [lat, lng]
-                        });
+                    // Get speed data
+                    const currentSpeed = segment.currentSpeed || 0; // m/s
+                    const freeFlowSpeed = segment.freeFlowSpeed || currentSpeed; // m/s
+                    const confidence = segment.confidence || 0.7;
+                    
+                    // Convert speeds from m/s to km/h
+                    const currentSpeedKmh = Math.round(currentSpeed * 3.6);
+                    const freeFlowSpeedKmh = Math.round(freeFlowSpeed * 3.6);
+                    
+                    // Calculate traffic level based on speed ratio
+                    const speedRatio = freeFlowSpeed > 0 ? currentSpeed / freeFlowSpeed : 1;
+                    let level = 'light';
+                    
+                    if (speedRatio < 0.3) {
+                        level = 'jam';
+                    } else if (speedRatio < 0.5) {
+                        level = 'heavy';
+                    } else if (speedRatio < 0.7) {
+                        level = 'moderate';
                     }
                     
-                    // Determine traffic level based on incident severity
-                    let level = 'moderate';
-                    let speed = 30;
+                    // Get road information
+                    const roadName = segment.roadClosure ? 'Zamknięta droga' : 
+                                   (segment.functionalRoadClass ? `Droga klasy ${segment.functionalRoadClass}` : 'Droga');
                     
-                    if (incident.properties) {
-                        const severity = incident.properties.severity || 'MINOR';
-                        const delay = incident.properties.delay || 0;
-                        
-                        if (severity === 'CRITICAL' || delay > 1800) { // 30+ min delay
-                            level = 'jam';
-                            speed = 5;
-                        } else if (severity === 'MAJOR' || delay > 900) { // 15+ min delay
-                            level = 'heavy';
-                            speed = 15;
-                        } else if (severity === 'MODERATE' || delay > 300) { // 5+ min delay
-                            level = 'moderate';
-                            speed = 25;
-                        } else {
-                            level = 'light';
-                            speed = 45;
-                        }
-                        
-                        trafficSegments.push({
-                            coords: coords,
-                            level: level,
-                            speed: speed,
-                            name: incident.properties.description || 'Traffic Incident',
-                            severity: severity,
-                            delay: Math.round(delay / 60) // Convert to minutes
-                        });
-                    }
+                    trafficSegments.push({
+                        coords: coords,
+                        level: level,
+                        speed: currentSpeedKmh,
+                        name: roadName,
+                        freeFlowSpeed: freeFlowSpeedKmh,
+                        confidence: Math.round(confidence * 100),
+                        speedRatio: Math.round(speedRatio * 100)
+                    });
                 }
             });
         }
@@ -395,13 +386,17 @@ class TrafficMap {
             }).addTo(this.trafficLayer);
             
             // Add popup with traffic info
-            trafficLine.bindPopup(`
+            const popupContent = `
                 <div style="color: #333;">
                     <strong>${traffic.name}</strong><br>
                     Natężenie: ${this.getTrafficLevelName(traffic.level)}<br>
-                    Prędkość: ${traffic.speed} km/h
+                    Aktualna prędkość: ${traffic.speed} km/h<br>
+                    ${traffic.freeFlowSpeed ? `Prędkość bez korków: ${traffic.freeFlowSpeed} km/h<br>` : ''}
+                    ${traffic.confidence ? `Pewność danych: ${traffic.confidence}%<br>` : ''}
+                    ${traffic.speedRatio ? `Płynność ruchu: ${traffic.speedRatio}%` : ''}
                 </div>
-            `);
+            `;
+            trafficLine.bindPopup(popupContent);
         });
     }
 

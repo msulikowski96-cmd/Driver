@@ -152,7 +152,7 @@ function updateLocationStatus() {
         
         navigator.geolocation.getCurrentPosition(
             function(position) {
-                locationText.innerHTML = '<i class="fas fa-map-marker-alt me-2"></i>Mapa pokazuje ruch w Twojej okolicy z TomTom API. Dane aktualizowane co 5 minut.';
+                locationText.innerHTML = '<i class="fas fa-map-marker-alt me-2"></i>Mapa pokazuje natężenie ruchu w Twojej okolicy z TomTom API. Dane aktualizowane co 5 minut.';
                 locationStatus.className = 'alert alert-success';
             },
             function(error) {
