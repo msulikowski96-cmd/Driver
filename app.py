@@ -45,9 +45,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
-    "echo": False
 }
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Initialize the app with the extension
 db.init_app(app)
@@ -146,22 +144,8 @@ init_auth(app)
 
 # Create database tables
 with app.app_context():
-    try:
-        # Test database connection
-        db.engine.execute("SELECT 1")
-        logging.info("Database connection successful")
-        
-        # Create all tables
-        db.create_all()
-        logging.info("Database tables created successfully")
-        
-        # Create admin user
-        create_admin_user()
-        logging.info("Admin user initialized")
-        
-    except Exception as e:
-        logging.error(f"Database initialization error: {e}")
-        raise
+    db.create_all()
+    create_admin_user()
 
 
 # Routes
@@ -475,123 +459,98 @@ def manifest():
 @login_required
 def api_rate():
     """API endpoint for rating a vehicle"""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'Brak danych JSON'}), 400
-            
-        license_plate = data.get('license_plate', '').strip().upper()
-        rating_value = data.get('rating')
+    data = request.get_json()
+    license_plate = data.get('license_plate', '').strip().upper()
+    rating_value = data.get('rating')
 
-        logging.info(f"Rating request: plate={license_plate}, rating={rating_value}, user={session['user_id']}")
+    if not validate_license_plate(license_plate):
+        return jsonify({'error': 'Nieprawidłowy numer rejestracyjny'}), 400
 
-        if not validate_license_plate(license_plate):
-            return jsonify({'error': 'Nieprawidłowy numer rejestracyjny'}), 400
+    if not rating_value or rating_value < 1 or rating_value > 5:
+        return jsonify({'error': 'Ocena musi być w przedziale 1-5'}), 400
 
-        if not rating_value or not isinstance(rating_value, int) or rating_value < 1 or rating_value > 5:
-            return jsonify({'error': 'Ocena musi być liczbą całkowitą w przedziale 1-5'}), 400
+    # Get or create vehicle
+    vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
+    if not vehicle:
+        vehicle = Vehicle()
+        vehicle.license_plate = license_plate
+        db.session.add(vehicle)
+        db.session.flush()
 
-        # Get or create vehicle
-        vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
-        if not vehicle:
-            vehicle = Vehicle()
-            vehicle.license_plate = license_plate
-            db.session.add(vehicle)
-            db.session.flush()
+    if vehicle.is_blocked:
+        return jsonify({'error': 'Ten pojazd został zablokowany'}), 403
 
-        if vehicle.is_blocked:
-            return jsonify({'error': 'Ten pojazd został zablokowany'}), 403
+    # Check if user already rated this vehicle
+    existing_rating = Rating.query.filter_by(
+        vehicle_id=vehicle.id, user_id=session['user_id']).first()
 
-        # Check if user already rated this vehicle
-        existing_rating = Rating.query.filter_by(
-            vehicle_id=vehicle.id, user_id=session['user_id']).first()
+    if existing_rating:
+        existing_rating.rating = rating_value
+        existing_rating.created_at = datetime.utcnow()
+    else:
+        rating = Rating()
+        rating.vehicle_id = vehicle.id
+        rating.user_id = session['user_id']
+        rating.rating = rating_value
+        db.session.add(rating)
 
-        if existing_rating:
-            existing_rating.rating = rating_value
-            existing_rating.created_at = datetime.utcnow()
-            logging.info(f"Updated existing rating for {license_plate}")
-        else:
-            rating = Rating()
-            rating.vehicle_id = vehicle.id
-            rating.user_id = session['user_id']
-            rating.rating = rating_value
-            db.session.add(rating)
-            logging.info(f"Created new rating for {license_plate}")
+    db.session.commit()
 
+    # Update user statistics
+    user_stats = UserStatistics.query.filter_by(user_id=session['user_id']).first()
+    if not user_stats:
+        user_stats = UserStatistics()
+        user_stats.user_id = session['user_id']
+        db.session.add(user_stats)
         db.session.commit()
+    user_stats.update_statistics()
 
-        # Update user statistics
-        user_stats = UserStatistics.query.filter_by(user_id=session['user_id']).first()
-        if not user_stats:
-            user_stats = UserStatistics()
-            user_stats.user_id = session['user_id']
-            db.session.add(user_stats)
-            db.session.commit()
-        user_stats.update_statistics()
-
-        return jsonify({'success': True, 'message': 'Ocena została zapisana'})
-        
-    except Exception as e:
-        db.session.rollback()
-        logging.error(f"Error in api_rate: {e}")
-        return jsonify({'error': 'Błąd serwera podczas zapisywania oceny'}), 500
+    return jsonify({'success': True, 'message': 'Ocena została zapisana'})
 
 
 @app.route('/api/comment', methods=['POST'])
 @login_required
 def api_comment():
     """API endpoint for adding a comment"""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'Brak danych JSON'}), 400
-            
-        license_plate = data.get('license_plate', '').strip().upper()
-        comment_text = data.get('comment', '').strip()
+    data = request.get_json()
+    license_plate = data.get('license_plate', '').strip().upper()
+    comment_text = data.get('comment', '').strip()
 
-        logging.info(f"Comment request: plate={license_plate}, user={session['user_id']}")
+    if not validate_license_plate(license_plate):
+        return jsonify({'error': 'Nieprawidłowy numer rejestracyjny'}), 400
 
-        if not validate_license_plate(license_plate):
-            return jsonify({'error': 'Nieprawidłowy numer rejestracyjny'}), 400
+    if not comment_text:
+        return jsonify({'error': 'Komentarz nie może być pusty'}), 400
 
-        if not comment_text or len(comment_text) < 3:
-            return jsonify({'error': 'Komentarz musi mieć co najmniej 3 znaki'}), 400
+    # Get or create vehicle
+    vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
+    if not vehicle:
+        vehicle = Vehicle()
+        vehicle.license_plate = license_plate
+        db.session.add(vehicle)
+        db.session.flush()
 
-        # Get or create vehicle
-        vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
-        if not vehicle:
-            vehicle = Vehicle()
-            vehicle.license_plate = license_plate
-            db.session.add(vehicle)
-            db.session.flush()
+    if vehicle.is_blocked:
+        return jsonify({'error': 'Ten pojazd został zablokowany'}), 403
 
-        if vehicle.is_blocked:
-            return jsonify({'error': 'Ten pojazd został zablokowany'}), 403
+    comment = Comment()
+    comment.vehicle_id = vehicle.id
+    comment.user_id = session['user_id']
+    comment.content = comment_text
 
-        comment = Comment()
-        comment.vehicle_id = vehicle.id
-        comment.user_id = session['user_id']
-        comment.content = comment_text
+    db.session.add(comment)
+    db.session.commit()
 
-        db.session.add(comment)
+    # Update user statistics
+    user_stats = UserStatistics.query.filter_by(user_id=session['user_id']).first()
+    if not user_stats:
+        user_stats = UserStatistics()
+        user_stats.user_id = session['user_id']
+        db.session.add(user_stats)
         db.session.commit()
+    user_stats.update_statistics()
 
-        # Update user statistics
-        user_stats = UserStatistics.query.filter_by(user_id=session['user_id']).first()
-        if not user_stats:
-            user_stats = UserStatistics()
-            user_stats.user_id = session['user_id']
-            db.session.add(user_stats)
-            db.session.commit()
-        user_stats.update_statistics()
-
-        logging.info(f"Comment added successfully for {license_plate}")
-        return jsonify({'success': True, 'message': 'Komentarz został dodany'})
-        
-    except Exception as e:
-        db.session.rollback()
-        logging.error(f"Error in api_comment: {e}")
-        return jsonify({'error': 'Błąd serwera podczas dodawania komentarza'}), 500
+    return jsonify({'success': True, 'message': 'Komentarz został dodany'})
 
 
 @app.route('/api/report_comment', methods=['POST'])
