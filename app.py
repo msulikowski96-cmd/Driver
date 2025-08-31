@@ -9,6 +9,7 @@ try:
 except ImportError:
     # python-dotenv not installed, continue without it
     pass
+
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -28,6 +29,7 @@ db = SQLAlchemy(model_class=Base)
 
 # Create the app
 app = Flask(__name__)
+
 # Configuration from environment variables
 app.config['SECRET_KEY'] = os.environ.get(
     "SESSION_SECRET",
@@ -37,12 +39,21 @@ app.config['FLASK_ENV'] = os.environ.get("FLASK_ENV", "development")
 app.config['DEBUG'] = os.environ.get("FLASK_DEBUG", "True").lower() == "true"
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# Configure the database - Use PostgreSQL
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_recycle": 300,
-    "pool_pre_ping": True,
-}
+# Configure the database - Use SQLite for development
+database_url = os.environ.get("DATABASE_URL")
+if database_url:
+    # Production - PostgreSQL
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_recycle": 300,
+        "pool_pre_ping": True,
+    }
+else:
+    # Development - SQLite
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///instance/driver_ratings.db"
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_pre_ping": True,
+    }
 
 from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
 
