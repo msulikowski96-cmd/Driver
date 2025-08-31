@@ -62,10 +62,15 @@ class TrafficMap {
             zoomControl: false
         });
 
-        // Add base map tiles (using OpenStreetMap for compatibility)
-        // TomTom data is used for traffic information via API
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors | Traffic data by TomTom'
+        // Add TomTom custom style map tiles
+        // Using the custom dark driving style with API key
+        const tomtomApiKey = '34RIQppvhaUXhkjB4a3TF4Q3vG77ow5K';
+        const styleId = 'dG9tdG9tQEBAMW05d2F1aUpER1NIRDB6MjtR-pq4nRdJf4UqHMczlo9D';
+        
+        L.tileLayer(`https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${tomtomApiKey}&tileSize=512&view=Unified&style=${styleId}`, {
+            attribution: '© TomTom',
+            tileSize: 512,
+            zoomOffset: -1
         }).addTo(this.map);
 
         // Add custom zoom control
