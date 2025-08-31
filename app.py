@@ -37,7 +37,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Configure the database
 # Temporarily use SQLite for development
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///instance/driver_ratings.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///driver_ratings.db"
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
