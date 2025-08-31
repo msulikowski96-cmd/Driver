@@ -15,17 +15,68 @@ class TrafficMap {
         this.init();
     }
 
-    init() {
-        this.getUserLocation().then(() => {
-            this.createMap();
-            this.addTrafficLayer();
-            this.addControls();
-            this.updateTrafficData();
+    async init() {
+        try {
+            // Wait for Mapbox GL JS to load
+            await this.waitForMapboxGL();
             
-            // Update traffic data every 5 minutes
-            setInterval(() => {
+            await this.getUserLocation();
+            await this.createMap();
+            
+            this.map.on('load', () => {
+                this.addTrafficLayer();
+                this.addControls();
                 this.updateTrafficData();
-            }, 300000);
+                
+                // Update traffic data every 5 minutes
+                setInterval(() => {
+                    this.updateTrafficData();
+                }, 300000);
+            });
+        } catch (error) {
+            console.error('Failed to initialize traffic map:', error);
+            // Show error message to user
+            const container = document.getElementById(this.containerId);
+            if (container) {
+                container.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: #dc3545;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Nie udało się załadować mapy ruchu.</p>
+                        <p>${error.message || 'Sprawdź połączenie internetowe.'}</p>
+                        <button class="btn btn-primary btn-sm" onclick="location.reload()">
+                            <i class="fas fa-sync me-1"></i>Odśwież stronę
+                        </button>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    waitForMapboxGL() {
+        return new Promise((resolve, reject) => {
+            // If already loaded, resolve immediately
+            if (typeof mapboxgl !== 'undefined') {
+                console.log('Mapbox GL JS already available');
+                resolve();
+                return;
+            }
+
+            // Wait up to 30 seconds for the library to load (increased timeout)
+            let attempts = 0;
+            const maxAttempts = 300; // 30 seconds with 100ms intervals
+            
+            const checkInterval = setInterval(() => {
+                attempts++;
+                
+                if (typeof mapboxgl !== 'undefined') {
+                    console.log('Mapbox GL JS loaded after', attempts * 100, 'ms');
+                    clearInterval(checkInterval);
+                    resolve();
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(checkInterval);
+                    reject(new Error('Mapbox GL JS failed to load within 30 seconds'));
+                }
+            }, 100);
         });
     }
 
@@ -54,126 +105,202 @@ class TrafficMap {
         }
     }
 
-    createMap() {
-        // Using Leaflet for the map
-        this.map = L.map(this.containerId, {
-            center: this.options.center,
+    async createMap() {
+        // Check if mapboxgl is available
+        if (typeof mapboxgl === 'undefined') {
+            console.error('Mapbox GL JS library not loaded. Please check the script tags.');
+            throw new Error('Mapbox GL JS library not loaded');
+        }
+
+        // Use TomTom dark style
+        mapboxgl.accessToken = '';
+        
+        // TomTom dark monochrome style with traffic-friendly colors
+        const tomtomDarkStyle = {
+            version: 8,
+            name: "TomTom Dark Traffic",
+            sources: {
+                'tomtom-dark': {
+                    type: 'raster',
+                    tiles: [
+                        'https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=YOUR_API_KEY&tileSize=256&view=Unified&language=pl-PL&darkMode=true'
+                    ],
+                    tileSize: 256,
+                    attribution: '© TomTom'
+                }
+            },
+            layers: [
+                {
+                    id: 'background',
+                    type: 'background',
+                    paint: {
+                        'background-color': '#1a1a1a'
+                    }
+                },
+                {
+                    id: 'tomtom-dark',
+                    type: 'raster',
+                    source: 'tomtom-dark',
+                    minzoom: 0,
+                    maxzoom: 22
+                }
+            ]
+        };
+        
+        this.map = new mapboxgl.Map({
+            container: this.containerId,
+            style: tomtomDarkStyle,
+            center: [this.options.center[1], this.options.center[0]], // [lng, lat] format
             zoom: this.options.zoom,
-            zoomControl: false
+            attributionControl: true
         });
 
-        // Add base map tiles (using OpenStreetMap for compatibility)
-        // TomTom data is used for traffic information via API
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors | Traffic data by TomTom'
-        }).addTo(this.map);
-
-        // Add custom zoom control
-        L.control.zoom({
-            position: 'topright'
-        }).addTo(this.map);
-
+        // Add navigation controls
+        this.map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        
         // Add user location marker if available
         if (this.userLocation) {
-            const userMarker = L.marker(this.userLocation, {
-                icon: L.icon({
-                    iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-                            <circle cx="12" cy="12" r="8" fill="#007bff" stroke="#fff" stroke-width="2"/>
-                            <circle cx="12" cy="12" r="3" fill="#fff"/>
-                        </svg>
-                    `),
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 12]
-                })
-            }).addTo(this.map);
-            
-            userMarker.bindPopup('Twoja lokalizacja');
+            const marker = new mapboxgl.Marker({
+                color: '#007bff'
+            })
+            .setLngLat([this.userLocation[1], this.userLocation[0]])
+            .setPopup(new mapboxgl.Popup().setText('Twoja lokalizacja'))
+            .addTo(this.map);
         }
     }
 
     addTrafficLayer() {
-        // Create traffic layer group
-        this.trafficLayer = L.layerGroup().addTo(this.map);
+        // Add traffic source to map for GeoJSON data
+        this.map.addSource('traffic-flow', {
+            type: 'geojson',
+            data: {
+                type: 'FeatureCollection',
+                features: []
+            }
+        });
+
+        // Add traffic layer with line styling
+        this.map.addLayer({
+            id: 'traffic-lines',
+            type: 'line',
+            source: 'traffic-flow',
+            layout: {
+                'line-join': 'round',
+                'line-cap': 'round'
+            },
+            paint: {
+                'line-color': ['get', 'color'],
+                'line-width': ['get', 'width'],
+                'line-opacity': 0.8
+            }
+        });
         
         // Add traffic legend
         this.addTrafficLegend();
     }
 
     addControls() {
-        // Traffic toggle control
-        const trafficControl = L.Control.extend({
-            options: {
-                position: 'topleft'
-            },
-            onAdd: (map) => {
-                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-                container.style.backgroundColor = '#1f1f1f';
-                container.style.width = '30px';
-                container.style.height = '30px';
-                container.style.cursor = 'pointer';
-                container.innerHTML = '<i class="fas fa-road" style="color: white; line-height: 30px; text-align: center; display: block;"></i>';
-                container.title = 'Toggle Traffic';
+        // Create custom traffic toggle control for Mapbox GL
+        class TrafficToggleControl {
+            onAdd(map) {
+                this._map = map;
+                this._container = document.createElement('div');
+                this._container.className = 'mapboxgl-ctrl mapboxgl-ctrl-group';
+                this._container.style.background = '#1f1f1f';
                 
-                container.onclick = () => {
-                    this.toggleTraffic();
-                };
+                this._button = document.createElement('button');
+                this._button.className = 'mapboxgl-ctrl-icon';
+                this._button.type = 'button';
+                this._button.innerHTML = '<i class="fas fa-road" style="color: white;"></i>';
+                this._button.title = 'Toggle Traffic';
+                this._button.style.background = 'transparent';
+                this._button.style.border = 'none';
+                this._button.style.padding = '8px';
+                this._button.style.cursor = 'pointer';
                 
-                return container;
+                this._button.addEventListener('click', () => {
+                    window.trafficMap?.toggleTraffic();
+                });
+                
+                this._container.appendChild(this._button);
+                return this._container;
             }
-        });
-        
-        new trafficControl().addTo(this.map);
-
-        // Refresh control
-        const refreshControl = L.Control.extend({
-            options: {
-                position: 'topleft'
-            },
-            onAdd: (map) => {
-                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-                container.style.backgroundColor = '#1f1f1f';
-                container.style.width = '30px';
-                container.style.height = '30px';
-                container.style.cursor = 'pointer';
-                container.innerHTML = '<i class="fas fa-sync" style="color: white; line-height: 30px; text-align: center; display: block;"></i>';
-                container.title = 'Refresh Traffic Data';
-                
-                container.onclick = () => {
-                    this.refreshTrafficData();
-                };
-                
-                return container;
+            
+            onRemove() {
+                this._container.parentNode.removeChild(this._container);
+                this._map = undefined;
             }
-        });
+        }
         
-        new refreshControl().addTo(this.map);
+        // Create custom refresh control for Mapbox GL
+        class RefreshControl {
+            onAdd(map) {
+                this._map = map;
+                this._container = document.createElement('div');
+                this._container.className = 'mapboxgl-ctrl mapboxgl-ctrl-group';
+                this._container.style.background = '#1f1f1f';
+                
+                this._button = document.createElement('button');
+                this._button.className = 'mapboxgl-ctrl-icon';
+                this._button.type = 'button';
+                this._button.innerHTML = '<i class="fas fa-sync" style="color: white;"></i>';
+                this._button.title = 'Refresh Traffic Data';
+                this._button.style.background = 'transparent';
+                this._button.style.border = 'none';
+                this._button.style.padding = '8px';
+                this._button.style.cursor = 'pointer';
+                
+                this._button.addEventListener('click', () => {
+                    window.trafficMap?.refreshTrafficData();
+                });
+                
+                this._container.appendChild(this._button);
+                return this._container;
+            }
+            
+            onRemove() {
+                this._container.parentNode.removeChild(this._container);
+                this._map = undefined;
+            }
+        }
+        
+        this.map.addControl(new TrafficToggleControl(), 'top-left');
+        this.map.addControl(new RefreshControl(), 'top-left');
     }
 
     addTrafficLegend() {
-        const legend = L.control({ position: 'bottomright' });
-        
-        legend.onAdd = (map) => {
-            const div = L.DomUtil.create('div', 'traffic-legend');
-            div.style.backgroundColor = 'rgba(31, 31, 31, 0.9)';
-            div.style.color = 'white';
-            div.style.padding = '8px';
-            div.style.fontSize = '12px';
-            div.style.borderRadius = '4px';
-            div.style.border = '1px solid #333';
+        // Create custom control for Mapbox GL
+        class TrafficLegendControl {
+            onAdd(map) {
+                this._map = map;
+                this._container = document.createElement('div');
+                this._container.className = 'mapboxgl-ctrl mapboxgl-ctrl-group traffic-legend';
+                this._container.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                this._container.style.color = 'white';
+                this._container.style.padding = '10px';
+                this._container.style.fontSize = '12px';
+                this._container.style.borderRadius = '4px';
+                this._container.style.border = '1px solid #444';
+                this._container.style.backdropFilter = 'blur(10px)';
+                
+                this._container.innerHTML = `
+                    <div style="font-weight: bold; margin-bottom: 8px; font-size: 13px;">Natężenie ruchu</div>
+                    <div style="margin-bottom: 4px;"><span style="color: #28a745; font-size: 14px;">●</span> Płynny</div>
+                    <div style="margin-bottom: 4px;"><span style="color: #ffc107; font-size: 14px;">●</span> Umiarkowany</div>
+                    <div style="margin-bottom: 4px;"><span style="color: #fd7e14; font-size: 14px;">●</span> Intensywny</div>
+                    <div><span style="color: #dc3545; font-size: 14px;">●</span> Korek</div>
+                `;
+                
+                return this._container;
+            }
             
-            div.innerHTML = `
-                <div style="font-weight: bold; margin-bottom: 5px;">Natężenie ruchu</div>
-                <div><span style="color: #28a745;">●</span> Płynny</div>
-                <div><span style="color: #ffc107;">●</span> Umiarkowany</div>
-                <div><span style="color: #fd7e14;">●</span> Intensywny</div>
-                <div><span style="color: #dc3545;">●</span> Korek</div>
-            `;
-            
-            return div;
-        };
+            onRemove() {
+                this._container.parentNode.removeChild(this._container);
+                this._map = undefined;
+            }
+        }
         
-        legend.addTo(this.map);
+        this.map.addControl(new TrafficLegendControl(), 'bottom-right');
     }
 
     async updateTrafficData() {
@@ -183,9 +310,6 @@ class TrafficMap {
             
             // Fetch real traffic data from TomTom API
             const trafficData = await this.fetchTrafficData(bounds);
-            
-            // Clear existing traffic markers
-            this.trafficLayer.clearLayers();
             
             // Add traffic indicators
             this.addTrafficIndicators(trafficData);
@@ -256,7 +380,6 @@ class TrafficMap {
         return trafficSegments;
     }
 
-
     async fetchTomTomTrafficData(bounds) {
         try {
             const center = bounds.getCenter();
@@ -269,66 +392,17 @@ class TrafficMap {
             
             if (response.ok) {
                 const data = await response.json();
+                console.log('TomTom API success:', data);
                 return this.processTomTomTrafficData(data);
             } else {
-                console.log('TomTom API response error:', response.status);
+                console.log('TomTom API response error:', response.status, response.statusText);
                 return this.getSimulatedTrafficData(bounds);
             }
         } catch (error) {
-            console.log('TomTom API error:', error);
+            console.error('TomTom API error:', error);
             return this.getSimulatedTrafficData(bounds);
         }
     }
-
-
-
-    simulateTomTomData(bounds) {
-        // Simulate realistic traffic data based on time of day and location
-        const currentHour = new Date().getHours();
-        const isRushHour = (currentHour >= 7 && currentHour <= 9) || (currentHour >= 16 && currentHour <= 18);
-        const center = bounds.getCenter();
-        
-        const segments = [];
-        const roadCount = Math.random() * 10 + 5;
-        
-        for (let i = 0; i < roadCount; i++) {
-            const startLat = center.lat + (Math.random() - 0.5) * 0.02;
-            const startLng = center.lng + (Math.random() - 0.5) * 0.02;
-            const endLat = startLat + (Math.random() - 0.5) * 0.01;
-            const endLng = startLng + (Math.random() - 0.5) * 0.01;
-            
-            let level = 'light';
-            let speed = 50;
-            
-            if (isRushHour) {
-                const randomLevel = Math.random();
-                if (randomLevel < 0.3) {
-                    level = 'jam';
-                    speed = 5 + Math.random() * 10;
-                } else if (randomLevel < 0.6) {
-                    level = 'heavy';
-                    speed = 15 + Math.random() * 15;
-                } else {
-                    level = 'moderate';
-                    speed = 25 + Math.random() * 20;
-                }
-            } else {
-                speed = 35 + Math.random() * 25;
-            }
-            
-            segments.push({
-                coords: [[startLat, startLng], [endLat, endLng]],
-                level: level,
-                speed: Math.round(speed),
-                name: `Road ${i + 1}`
-            });
-        }
-        
-        return segments;
-    }
-
-
-
 
     getSimulatedTrafficData(bounds) {
         // Enhanced fallback simulation based on current location
@@ -337,7 +411,7 @@ class TrafficMap {
         const isRushHour = (currentHour >= 7 && currentHour <= 9) || (currentHour >= 16 && currentHour <= 18);
         
         const segments = [];
-        const roadNames = ['Main Street', 'Central Avenue', 'Highway 1', 'Business District', 'Residential Road'];
+        const roadNames = ['Główna', 'Centralna', 'Obwodnica', 'Dzielnicowa', 'Osiedlowa'];
         
         for (let i = 0; i < 8; i++) {
             const startLat = center.lat + (Math.random() - 0.5) * 0.02;
@@ -374,29 +448,67 @@ class TrafficMap {
     }
 
     addTrafficIndicators(trafficData) {
-        trafficData.forEach(traffic => {
+        // Convert traffic data to GeoJSON features for Mapbox GL
+        const features = trafficData.map(traffic => {
             const color = this.getTrafficColor(traffic.level);
             const weight = this.getTrafficWeight(traffic.level);
             
-            // Add traffic line
-            const trafficLine = L.polyline(traffic.coords, {
-                color: color,
-                weight: weight,
-                opacity: 0.8
-            }).addTo(this.trafficLayer);
+            // Convert coords to GeoJSON LineString format [lng, lat]
+            const coordinates = traffic.coords.map(coord => [coord[1], coord[0]]);
             
-            // Add popup with traffic info
+            return {
+                type: 'Feature',
+                geometry: {
+                    type: 'LineString',
+                    coordinates: coordinates
+                },
+                properties: {
+                    color: color,
+                    width: weight,
+                    level: traffic.level,
+                    name: traffic.name,
+                    speed: traffic.speed,
+                    freeFlowSpeed: traffic.freeFlowSpeed,
+                    confidence: traffic.confidence,
+                    speedRatio: traffic.speedRatio
+                }
+            };
+        });
+
+        // Update the traffic source with new data
+        this.map.getSource('traffic-flow').setData({
+            type: 'FeatureCollection',
+            features: features
+        });
+
+        // Add click handler for popups
+        this.map.off('click', 'traffic-lines'); // Remove existing handler
+        this.map.on('click', 'traffic-lines', (e) => {
+            const properties = e.features[0].properties;
             const popupContent = `
                 <div style="color: #333;">
-                    <strong>${traffic.name}</strong><br>
-                    Natężenie: ${this.getTrafficLevelName(traffic.level)}<br>
-                    Aktualna prędkość: ${traffic.speed} km/h<br>
-                    ${traffic.freeFlowSpeed ? `Prędkość bez korków: ${traffic.freeFlowSpeed} km/h<br>` : ''}
-                    ${traffic.confidence ? `Pewność danych: ${traffic.confidence}%<br>` : ''}
-                    ${traffic.speedRatio ? `Płynność ruchu: ${traffic.speedRatio}%` : ''}
+                    <strong>${properties.name}</strong><br>
+                    Natężenie: ${this.getTrafficLevelName(properties.level)}<br>
+                    Aktualna prędkość: ${properties.speed} km/h<br>
+                    ${properties.freeFlowSpeed ? `Prędkość bez korków: ${properties.freeFlowSpeed} km/h<br>` : ''}
+                    ${properties.confidence ? `Pewność danych: ${properties.confidence}%<br>` : ''}
+                    ${properties.speedRatio ? `Płynność ruchu: ${properties.speedRatio}%` : ''}
                 </div>
             `;
-            trafficLine.bindPopup(popupContent);
+            
+            new mapboxgl.Popup()
+                .setLngLat(e.lngLat)
+                .setHTML(popupContent)
+                .addTo(this.map);
+        });
+
+        // Change cursor on hover
+        this.map.on('mouseenter', 'traffic-lines', () => {
+            this.map.getCanvas().style.cursor = 'pointer';
+        });
+
+        this.map.on('mouseleave', 'traffic-lines', () => {
+            this.map.getCanvas().style.cursor = '';
         });
     }
 
@@ -431,10 +543,14 @@ class TrafficMap {
     }
 
     toggleTraffic() {
-        if (this.map.hasLayer(this.trafficLayer)) {
-            this.map.removeLayer(this.trafficLayer);
-        } else {
-            this.map.addLayer(this.trafficLayer);
+        const layer = this.map.getLayer('traffic-lines');
+        if (layer) {
+            const visibility = this.map.getLayoutProperty('traffic-lines', 'visibility');
+            if (visibility === 'visible' || visibility === undefined) {
+                this.map.setLayoutProperty('traffic-lines', 'visibility', 'none');
+            } else {
+                this.map.setLayoutProperty('traffic-lines', 'visibility', 'visible');
+            }
         }
     }
 
@@ -451,20 +567,28 @@ class TrafficMap {
         });
     }
 
-
     resize() {
         if (this.map) {
-            this.map.invalidateSize();
+            this.map.resize();
         }
     }
 }
 
 // Initialize traffic map when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    const trafficMapContainer = document.getElementById('traffic-map');
-    if (trafficMapContainer) {
-        window.trafficMap = new TrafficMap('traffic-map');
-    }
+    // Wait a bit longer for all scripts to load
+    setTimeout(() => {
+        const trafficMapContainer = document.getElementById('traffic-map');
+        const mainTrafficMapContainer = document.getElementById('main-traffic-map');
+        
+        if (trafficMapContainer) {
+            window.trafficMap = new TrafficMap('traffic-map');
+        }
+        
+        if (mainTrafficMapContainer) {
+            window.mainTrafficMap = new TrafficMap('main-traffic-map', { zoom: 12 });
+        }
+    }, 1000); // Wait 1 second for scripts to fully load
 });
 
 // CSS styles for traffic map
@@ -474,30 +598,34 @@ const trafficStyles = `
         height: 300px;
         border-radius: 8px;
         overflow: hidden;
-        border: 1px solid #333;
+        border: 1px solid #444;
+        background-color: #1a1a1a;
     }
     
     .traffic-legend {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     }
     
-    .leaflet-control-custom {
-        background: #1f1f1f !important;
-        border: 1px solid #333 !important;
+    .mapboxgl-popup-content {
+        background: #2a2a2a !important;
+        color: #ffffff !important;
+        border-radius: 8px !important;
+        border: 1px solid #444 !important;
     }
     
-    .leaflet-control-custom:hover {
-        background: #333 !important;
+    .mapboxgl-popup-tip {
+        border-top-color: #2a2a2a !important;
+        border-bottom-color: #2a2a2a !important;
     }
     
-    .leaflet-popup-content-wrapper {
-        background: #fff;
-        color: #333;
-        border-radius: 8px;
+    .mapboxgl-ctrl-attrib {
+        background-color: rgba(0, 0, 0, 0.7) !important;
+        color: #ffffff !important;
     }
     
-    .leaflet-popup-tip {
-        background: #fff;
+    .mapboxgl-ctrl-attrib a {
+        color: #66b3ff !important;
     }
     
     @keyframes spin {

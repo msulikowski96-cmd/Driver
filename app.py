@@ -36,22 +36,12 @@ app.config['DEBUG'] = os.environ.get("FLASK_DEBUG", "True").lower() == "true"
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Configure the database
-# Use PostgreSQL if DATABASE_URL is available (Replit), otherwise SQLite for development
-database_url = os.environ.get("DATABASE_URL")
-if database_url:
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "pool_recycle": 300,
-        "pool_pre_ping": True,
-    }
-else:
-    # SQLite for local development
-    app.config[
-        "SQLALCHEMY_DATABASE_URI"] = "sqlite:///instance/driver_ratings.db"
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "pool_recycle": 300,
-        "pool_pre_ping": True,
-    }
+# Temporarily use SQLite for development
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///driver_ratings.db"
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_recycle": 300,
+    "pool_pre_ping": True,
+}
 
 from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
 
@@ -599,10 +589,18 @@ def api_tomtom_traffic():
         
         if not lat or not lng:
             return jsonify({'error': 'Missing latitude or longitude'}), 400
+        
+        # Check if TomTom API key is available
+        if not tomtom_api_key:
+            print("TomTom API key not configured, returning simulated data")
+            return jsonify({
+                'flowSegmentData': [],
+                'simulated': True,
+                'message': 'Using simulated data - API key not configured'
+            })
             
         # TomTom Traffic Flow API for traffic density and speed data
-        # Using raster tiles which are more reliable for flow data
-        tomtom_url = f"https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/{zoom}/json"
+        tomtom_url = f"https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
         
         import requests
         headers = {
@@ -614,13 +612,6 @@ def api_tomtom_traffic():
             'unit': 'KMPH'
         }
         
-        # Add bounding box if provided for better traffic coverage
-        if bbox:
-            bbox_coords = bbox.split(',')
-            if len(bbox_coords) == 4:
-                # TomTom uses different bbox format, but for flow data we use point-based requests
-                pass
-        
         response = requests.get(tomtom_url, headers=headers, params=params, timeout=10)
         
         if response.status_code == 200:
@@ -629,14 +620,21 @@ def api_tomtom_traffic():
             return jsonify(data)
         else:
             print(f"TomTom API error: {response.status_code} - {response.text}")
+            # Return simulated data as fallback
             return jsonify({
-                'error': 'TomTom API error',
-                'status_code': response.status_code
-            }), response.status_code
+                'flowSegmentData': [],
+                'simulated': True,
+                'message': f'TomTom API error {response.status_code}, using simulated data'
+            })
             
     except Exception as e:
         print(f"TomTom proxy error: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+        # Return simulated data as fallback
+        return jsonify({
+            'flowSegmentData': [],
+            'simulated': True,
+            'message': f'API error: {str(e)}, using simulated data'
+        })
 
 
 @app.route('/api/delete_my_comment', methods=['POST'])
