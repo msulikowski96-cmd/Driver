@@ -15,38 +15,36 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import re
-from flask import send_from_directory
-from flask import Flask, send_from_directory
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
 
-# Tworzymy aplikację Flask **przed użyciem dekoratorów**
-app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-
-# Trasa do pliku ads.txt
-@app.route('/ads.txt')
-def ads_txt():
-    # Plik ads.txt musi być w katalogu głównym obok app.py
-    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'ads.txt')
-
-# Konfiguracja aplikacji
-app.config['SECRET_KEY'] = os.environ.get("SESSION_SECRET", "dev-secret-key-change-in-production")
-app.config['FLASK_ENV'] = os.environ.get("FLASK_ENV", "development")
-app.config['DEBUG'] = os.environ.get("FLASK_DEBUG", "True").lower() == "true"
-
-# Definicja bazy
 class Base(DeclarativeBase):
     pass
 
+
 db = SQLAlchemy(model_class=Base)
+
+# Create the app
+app = Flask(__name__)
+# Configuration from environment variables
+app.config['SECRET_KEY'] = os.environ.get(
+    "SESSION_SECRET", "dev-secret-key-change-in-production")
+app.config['FLASK_ENV'] = os.environ.get("FLASK_ENV", "development")
+app.config['DEBUG'] = os.environ.get("FLASK_DEBUG", "True").lower() == "true"
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# Configure the database
+# Temporarily use SQLite for development
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///driver_ratings.db"
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
 }
 
-# Import modeli po skonfigurowaniu db
-from models import User, Vehicle, Rating, Comment, Report
+from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
+
 # Initialize the app with the extension
 db.init_app(app)
 
