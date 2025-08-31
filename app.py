@@ -37,18 +37,29 @@ app.config['SECRET_KEY'] = os.environ.get(
     "SESSION_SECRET",
     "4+d1eDMn4D5d1Op1bg5a3PfDb45XEXLcDr1Te3P7+Dc4glg9XXNvmazD3D6GXanmB2fMthgRw09T0mH3COkUhw=="
 )
+app.config['DEBUG'] = os.environ.get("FLASK_DEBUG", "True").lower() == "true"
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Configure the database - Use PostgreSQL
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
-    raise ValueError("DATABASE_URL environment variable is required")
+    # Fallback to SQLite for development
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///driver_ratings.db"
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_pre_ping": True,
+    }
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_recycle": 300,
+        "pool_pre_ping": True,
+    }
 
-
-
-
+# Initialize the app with the extension
 db.init_app(app)
-# Import models after db initialization to avoid circular imports
 
+# Import models after db initialization to avoid circular imports
+from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
 
 # External API configuration
 tomtom_api_key = os.getenv("TOMTOM_API_KEY")
