@@ -80,6 +80,8 @@ async function submitRating(licensePlate, rating) {
     try {
         showLoading(true);
         
+        console.log('Submitting rating:', licensePlate, rating);
+        
         const response = await fetch('/api/rate', {
             method: 'POST',
             headers: {
@@ -92,7 +94,10 @@ async function submitRating(licensePlate, rating) {
             })
         });
         
-        const data = await response.json();
+        console.log('Response status:', response.status);
+        const responseText = await response.text();
+        console.log('Response body:', responseText);
+        const data = responseText ? JSON.parse(responseText) : {};
         
         if (response.ok && data.success) {
             currentRatings[licensePlate] = rating;
@@ -101,7 +106,11 @@ async function submitRating(licensePlate, rating) {
             // Update rating display
             updateRatingDisplay(licensePlate, rating);
         } else {
-            showMessage(data.error || 'Wystąpił błąd podczas zapisywania oceny', 'error');
+            if (response.status === 401) {
+                showMessage('Musisz się zalogować, aby móc oceniać kierowców', 'warning');
+            } else {
+                showMessage(data.error || 'Wystąpił błąd podczas zapisywania oceny', 'error');
+            }
         }
     } catch (error) {
         console.error('Error submitting rating:', error);
@@ -160,6 +169,8 @@ async function submitComment(licensePlate) {
     try {
         showLoading(true);
         
+        console.log('Submitting comment:', licensePlate, commentText);
+        
         const response = await fetch('/api/comment', {
             method: 'POST',
             headers: {
@@ -172,7 +183,10 @@ async function submitComment(licensePlate) {
             })
         });
         
-        const data = await response.json();
+        console.log('Comment response status:', response.status);
+        const responseText = await response.text();
+        console.log('Comment response body:', responseText);
+        const data = responseText ? JSON.parse(responseText) : {};
         
         if (response.ok && data.success) {
             showMessage(data.message || 'Komentarz został dodany!', 'success');
@@ -187,7 +201,11 @@ async function submitComment(licensePlate) {
                 window.location.reload();
             }, 1000);
         } else {
-            showMessage(data.error || 'Wystąpił błąd podczas dodawania komentarza', 'error');
+            if (response.status === 401) {
+                showMessage('Musisz się zalogować, aby móc dodawać komentarze', 'warning');
+            } else {
+                showMessage(data.error || 'Wystąpił błąd podczas dodawania komentarza', 'error');
+            }
         }
     } catch (error) {
         console.error('Error submitting comment:', error);
