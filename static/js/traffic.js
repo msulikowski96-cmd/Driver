@@ -85,7 +85,11 @@ class TrafficMap {
         }
 
         // Initialize Mapbox GL map with TomTom style
-        // No access token needed for custom styles
+        // Set empty access token for custom styles
+        if (typeof mapboxgl !== 'undefined') {
+            mapboxgl.accessToken = '';
+        }
+        
         this.map = new mapboxgl.Map({
             container: this.containerId,
             style: style,
@@ -307,13 +311,14 @@ class TrafficMap {
             
             if (response.ok) {
                 const data = await response.json();
+                console.log('TomTom API success:', data);
                 return this.processTomTomTrafficData(data);
             } else {
-                console.log('TomTom API response error:', response.status);
+                console.log('TomTom API response error:', response.status, response.statusText);
                 return this.getSimulatedTrafficData(bounds);
             }
         } catch (error) {
-            console.log('TomTom API error:', error);
+            console.error('TomTom API error:', error);
             return this.getSimulatedTrafficData(bounds);
         }
     }
