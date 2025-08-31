@@ -50,10 +50,11 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
 }
 
-from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
-
 # Initialize the app with the extension
 db.init_app(app)
+
+# Import models after db initialization to avoid circular imports
+from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
 
 
 # Helper functions for authentication
