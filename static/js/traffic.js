@@ -62,15 +62,14 @@ class TrafficMap {
             zoomControl: false
         });
 
-        // Add TomTom custom style map tiles
-        // Using the custom dark driving style with API key
+        // Add TomTom map tiles with proper API endpoint
+        // Using the Maps API v1 with custom style
         const tomtomApiKey = '34RIQppvhaUXhkjB4a3TF4Q3vG77ow5K';
-        const styleId = 'dG9tdG9tQEBAMW05d2F1aUpER1NIRDB6MjtR-pq4nRdJf4UqHMczlo9D';
         
-        L.tileLayer(`https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${tomtomApiKey}&tileSize=512&view=Unified&style=${styleId}`, {
+        // Try the standard TomTom raster tiles first
+        L.tileLayer(`https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${tomtomApiKey}`, {
             attribution: '© TomTom',
-            tileSize: 512,
-            zoomOffset: -1
+            maxZoom: 22
         }).addTo(this.map);
 
         // Add custom zoom control
