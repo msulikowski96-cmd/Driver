@@ -1,0 +1,26 @@
+{
+  "version": 8,
+  "name": "Street Driving Dark [Orbis]",
+  "metadata": {
+    "tomtom:theme": {
+      "definition": {
+        "variables": {
+          "_namespace_vars": {
+            "land": "hsl(45, 4%, 96%)",
+            "water": "{{darkenBy (multiply water-sign water-add) (darken water-factor land)}}",
+            "vegetation": "{{darken 0.05 (darkenBy 2 land)}}",
+            "park": "{{saturateBy 5 (lightenBy 1 (lighten 0.03 vegetation))}}",
+            "artificial": "{{darkenBy (multiply artificial-sign artificial-add) (lighten artificial-factor land)}}",
+            "road-major": "{{road}}",
+            "road": "{{lightenBy (multiply road-sign road-add) (lighten road-factor land)}}",
+            "road-outline": "{{darkenBy (multiply road-sign road-outline-add) road}}",
+            "label": "{{desaturate 0.3 (darkenBy (multiply label-sign label-add) (lighten label-factor land))}}",
+            "label-outline": "{{desaturate 0.7 (darkenBy (multiply label-outline-sign label-outline-add) (lighten label-outline-factor label))}}",
+            "toggle-true": true,
+            "toggle-false": false
+          }
+        }
+      }
+    }
+  }
+}

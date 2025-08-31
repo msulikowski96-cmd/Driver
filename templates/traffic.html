@@ -3,66 +3,6 @@
 
 {% block title %}Mapa ruchu - Oceny Kierowców{% endblock %}
 
-{% block head %}
-<!-- Mapbox GL JS - Try multiple CDN sources for reliability -->
-<link href='https://unpkg.com/mapbox-gl@2.15.0/dist/mapbox-gl.css' rel='stylesheet' />
-
-<script>
-// Load Mapbox GL JS with multiple fallback sources
-(function loadMapboxGL() {
-    const sources = [
-        'https://unpkg.com/mapbox-gl@2.15.0/dist/mapbox-gl.js',
-        'https://cdn.jsdelivr.net/npm/mapbox-gl@2.15.0/dist/mapbox-gl.min.js',
-        'https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'
-    ];
-    
-    let currentSource = 0;
-    
-    function tryLoadScript() {
-        if (currentSource >= sources.length) {
-            console.error('All Mapbox GL JS sources failed to load');
-            showMapboxError();
-            return;
-        }
-        
-        const script = document.createElement('script');
-        script.src = sources[currentSource];
-        
-        script.onload = function() {
-            console.log(`Mapbox GL JS loaded successfully from source ${currentSource + 1}`);
-            window.mapboxLoaded = true;
-        };
-        
-        script.onerror = function() {
-            console.warn(`Failed to load Mapbox GL JS from source ${currentSource + 1}, trying next...`);
-            currentSource++;
-            tryLoadScript();
-        };
-        
-        document.head.appendChild(script);
-    }
-    
-    function showMapboxError() {
-        const container = document.getElementById('main-traffic-map');
-        if (container) {
-            container.innerHTML = `
-                <div style="padding: 40px; text-align: center; color: #dc3545; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
-                    <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
-                    <h4>Nie można załadować biblioteki map</h4>
-                    <p class="mb-3">Sprawdź połączenie internetowe i spróbuj ponownie.</p>
-                    <button class="btn btn-primary" onclick="location.reload()">
-                        <i class="fas fa-sync me-1"></i>Odśwież stronę
-                    </button>
-                </div>
-            `;
-        }
-    }
-    
-    tryLoadScript();
-})();
-</script>
-{% endblock %}
-
 {% block content %}
 <div class="row">
     <div class="col-12">
@@ -186,55 +126,21 @@
     </div>
 </div>
 
-<!-- Load traffic.js -->
-<script src="{{ url_for('static', filename='js/traffic.js') }}"></script>
-
 <script>
 let mainTrafficMap;
 
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', function() {
     // Update location status
     updateLocationStatus();
     
-    // Wait for scripts to fully load
-    setTimeout(async () => {
-        try {
-            // Check if Mapbox GL JS is available
-            if (typeof mapboxgl === 'undefined') {
-                console.log('Waiting for Mapbox GL JS to load...');
-                // Wait additional time for async loading
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-            
-            if (typeof mapboxgl !== 'undefined') {
-                // Initialize main traffic map
-                mainTrafficMap = new TrafficMap('main-traffic-map', {
-                    zoom: 12
-                });
-                
-                // Update last update time
-                updateLastUpdateTime();
-                setInterval(updateLastUpdateTime, 60000); // Update every minute
-            } else {
-                throw new Error('Mapbox GL JS library not available');
-            }
-        } catch (error) {
-            console.error('Failed to initialize traffic map:', error);
-            const container = document.getElementById('main-traffic-map');
-            if (container) {
-                container.innerHTML = `
-                    <div style="padding: 40px; text-align: center; color: #dc3545; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
-                        <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
-                        <h4>Nie udało się załadować mapy ruchu</h4>
-                        <p class="mb-3">Problem z ładowaniem biblioteki map. Spróbuj ponownie.</p>
-                        <button class="btn btn-primary" onclick="location.reload()">
-                            <i class="fas fa-sync me-1"></i>Odśwież stronę
-                        </button>
-                    </div>
-                `;
-            }
-        }
-    }, 1500); // Wait 1.5 seconds for all scripts to load
+    // Initialize main traffic map
+    mainTrafficMap = new TrafficMap('main-traffic-map', {
+        zoom: 12
+    });
+    
+    // Update last update time
+    updateLastUpdateTime();
+    setInterval(updateLastUpdateTime, 60000); // Update every minute
 });
 
 function updateLocationStatus() {
