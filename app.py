@@ -39,22 +39,16 @@ app.config['FLASK_ENV'] = os.environ.get("FLASK_ENV", "development")
 app.config['DEBUG'] = os.environ.get("FLASK_DEBUG", "True").lower() == "true"
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# Configure the database - Use SQLite for development
+# Configure the database - Use PostgreSQL
 database_url = os.environ.get("DATABASE_URL")
-if database_url:
-    # Production - PostgreSQL
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "pool_recycle": 300,
-        "pool_pre_ping": True,
-    }
-else:
-    # Development - SQLite
-    app.config[
-        "SQLALCHEMY_DATABASE_URI"] = "sqlite:///instance/driver_ratings.db"
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "pool_pre_ping": True,
-    }
+if not database_url:
+    raise ValueError("DATABASE_URL environment variable is required")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_recycle": 300,
+    "pool_pre_ping": True,
+}
 
 from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
 
