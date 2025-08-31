@@ -29,13 +29,14 @@ class Base(DeclarativeBase):
 
 db = SQLAlchemy(model_class=Base)
 
-# Create the app
+Tworzymy aplikację Flask **przed użyciem dekoratorów**
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-
-
+# Trasa do pliku ads.txt
 @app.route('/ads.txt')
 def ads_txt():
+    # Plik ads.txt musi być w katalogu głównym obok app.py
     return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'ads.txt')
 # Configuration from environment variables
 app.config['SECRET_KEY'] = os.environ.get(
