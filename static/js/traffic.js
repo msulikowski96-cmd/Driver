@@ -17,18 +17,36 @@ class TrafficMap {
 
     init() {
         this.getUserLocation().then(async () => {
-            await this.createMap();
-            
-            this.map.on('load', () => {
-                this.addTrafficLayer();
-                this.addControls();
-                this.updateTrafficData();
+            try {
+                await this.createMap();
                 
-                // Update traffic data every 5 minutes
-                setInterval(() => {
+                this.map.on('load', () => {
+                    this.addTrafficLayer();
+                    this.addControls();
                     this.updateTrafficData();
-                }, 300000);
-            });
+                    
+                    // Update traffic data every 5 minutes
+                    setInterval(() => {
+                        this.updateTrafficData();
+                    }, 300000);
+                });
+            } catch (error) {
+                console.error('Failed to initialize traffic map:', error);
+                // Show error message to user
+                const container = document.getElementById(this.containerId);
+                if (container) {
+                    container.innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: #dc3545;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <p>Nie udało się załadować mapy ruchu.</p>
+                            <p>Odśwież stronę lub spróbuj ponownie później.</p>
+                            <button class="btn btn-primary btn-sm" onclick="location.reload()">
+                                <i class="fas fa-sync me-1"></i>Odśwież stronę
+                            </button>
+                        </div>
+                    `;
+                }
+            }
         });
     }
 
@@ -58,6 +76,12 @@ class TrafficMap {
     }
 
     async createMap() {
+        // Check if mapboxgl is available
+        if (typeof mapboxgl === 'undefined') {
+            console.error('Mapbox GL JS library not loaded. Please check the script tags.');
+            throw new Error('Mapbox GL JS library not loaded');
+        }
+
         // Load the TomTom monochrome style
         let style;
         try {
@@ -86,9 +110,7 @@ class TrafficMap {
 
         // Initialize Mapbox GL map with TomTom style
         // Set empty access token for custom styles
-        if (typeof mapboxgl !== 'undefined') {
-            mapboxgl.accessToken = '';
-        }
+        mapboxgl.accessToken = '';
         
         this.map = new mapboxgl.Map({
             container: this.containerId,
