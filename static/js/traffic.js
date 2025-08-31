@@ -9,7 +9,7 @@ class TrafficMap {
         this.options = {
             center: [52.237049, 21.017532], // Warsaw coordinates (fallback)
             zoom: 10,
-            apiKey: 'TOMTOM_API_KEY_PLACEHOLDER', // Will be replaced with actual TomTom API key
+            tomtomApiKey: null, // Will be fetched from server
             ...options
         };
         this.init();
@@ -62,9 +62,10 @@ class TrafficMap {
             zoomControl: false
         });
 
-        // Add OpenStreetMap tiles
+        // Add base map tiles (using OpenStreetMap for compatibility)
+        // TomTom data is used for traffic information via API
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: '© OpenStreetMap contributors | Traffic data by TomTom'
         }).addTo(this.map);
 
         // Add custom zoom control
@@ -454,6 +455,7 @@ class TrafficMap {
             }
         });
     }
+
 
     resize() {
         if (this.map) {
