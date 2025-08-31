@@ -30,7 +30,9 @@ db = SQLAlchemy(model_class=Base)
 app = Flask(__name__)
 # Configuration from environment variables
 app.config['SECRET_KEY'] = os.environ.get(
-    "SESSION_SECRET", "dev-secret-key-change-in-production")
+    "SESSION_SECRET",
+    "4+d1eDMn4D5d1Op1bg5a3PfDb45XEXLcDr1Te3P7+Dc4glg9XXNvmazD3D6GXanmB2fMthgRw09T0mH3COkUhw=="
+)
 app.config['FLASK_ENV'] = os.environ.get("FLASK_ENV", "development")
 app.config['DEBUG'] = os.environ.get("FLASK_DEBUG", "True").lower() == "true"
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -586,47 +588,55 @@ def api_tomtom_traffic():
         lng = request.args.get('lng', type=float)
         zoom = request.args.get('zoom', type=int, default=12)
         bbox = request.args.get('bbox', '')
-        
+
         if not lat or not lng:
             return jsonify({'error': 'Missing latitude or longitude'}), 400
-        
+
         # Check if TomTom API key is available
         if not tomtom_api_key:
             print("TomTom API key not configured, returning simulated data")
             return jsonify({
                 'flowSegmentData': [],
-                'simulated': True,
-                'message': 'Using simulated data - API key not configured'
+                'simulated':
+                True,
+                'message':
+                'Using simulated data - API key not configured'
             })
-            
+
         # TomTom Traffic Flow API for traffic density and speed data
         tomtom_url = f"https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
-        
+
         import requests
-        headers = {
-            'User-Agent': 'Driver-Rating-App/1.0'
-        }
+        headers = {'User-Agent': 'Driver-Rating-App/1.0'}
         params = {
             'key': tomtom_api_key,
             'point': f'{lat},{lng}',
             'unit': 'KMPH'
         }
-        
-        response = requests.get(tomtom_url, headers=headers, params=params, timeout=10)
-        
+
+        response = requests.get(tomtom_url,
+                                headers=headers,
+                                params=params,
+                                timeout=10)
+
         if response.status_code == 200:
             data = response.json()
-            print(f"TomTom API success: Retrieved flow data with {len(data.get('flowSegmentData', []))} segments")
+            print(
+                f"TomTom API success: Retrieved flow data with {len(data.get('flowSegmentData', []))} segments"
+            )
             return jsonify(data)
         else:
-            print(f"TomTom API error: {response.status_code} - {response.text}")
+            print(
+                f"TomTom API error: {response.status_code} - {response.text}")
             # Return simulated data as fallback
             return jsonify({
                 'flowSegmentData': [],
-                'simulated': True,
-                'message': f'TomTom API error {response.status_code}, using simulated data'
+                'simulated':
+                True,
+                'message':
+                f'TomTom API error {response.status_code}, using simulated data'
             })
-            
+
     except Exception as e:
         print(f"TomTom proxy error: {e}")
         # Return simulated data as fallback
