@@ -23,11 +23,7 @@ except ImportError:
 logging.basicConfig(level=logging.DEBUG)
 
 
-class Base(DeclarativeBase):
-    pass
-
-
-db = SQLAlchemy(model_class=Base)
+from models import db, User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
 
 # Create the app
 app = Flask(__name__)
@@ -53,9 +49,6 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 
 # Initialize the app with the extension
 db.init_app(app)
-
-# Import models after db initialization to avoid circular imports
-from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
 
 # External API configuration
 tomtom_api_key = os.getenv("TOMTOM_API_KEY")
