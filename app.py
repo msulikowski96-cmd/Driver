@@ -621,7 +621,9 @@ def api_tomtom_traffic():
         response = requests.get(tomtom_url, headers=headers, params=params, timeout=10)
         
         if response.status_code == 200:
-            return jsonify(response.json())
+            data = response.json()
+            print(f"TomTom API success: Retrieved {len(data.get('incidents', []))} incidents")
+            return jsonify(data)
         else:
             print(f"TomTom API error: {response.status_code} - {response.text}")
             return jsonify({
