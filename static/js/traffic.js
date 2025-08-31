@@ -112,39 +112,44 @@ class TrafficMap {
             throw new Error('Mapbox GL JS library not loaded');
         }
 
-        // Load the TomTom monochrome style
-        let style;
-        try {
-            const response = await fetch('/static/js/monochrome_light_orbis_draft.json');
-            style = await response.json();
-            console.log('Loaded TomTom monochrome style successfully');
-        } catch (error) {
-            console.error('Failed to load custom style, using fallback:', error);
-            // Fallback to basic style
-            style = {
-                version: 8,
-                sources: {
-                    'osm': {
-                        type: 'raster',
-                        tiles: ['https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                        tileSize: 256
+        // Use Mapbox default dark style
+        mapboxgl.accessToken = '';
+        
+        // Dark style with traffic-friendly colors
+        const darkStyle = {
+            version: 8,
+            name: "Dark Traffic Map",
+            sources: {
+                'osm-dark': {
+                    type: 'raster',
+                    tiles: [
+                        'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png'
+                    ],
+                    tileSize: 256,
+                    attribution: '© Stadia Maps © OpenMapTiles © OpenStreetMap contributors'
+                }
+            },
+            layers: [
+                {
+                    id: 'background',
+                    type: 'background',
+                    paint: {
+                        'background-color': '#1a1a1a'
                     }
                 },
-                layers: [{
-                    id: 'osm',
+                {
+                    id: 'osm-dark',
                     type: 'raster',
-                    source: 'osm'
-                }]
-            };
-        }
-
-        // Initialize Mapbox GL map with TomTom style
-        // Set empty access token for custom styles
-        mapboxgl.accessToken = '';
+                    source: 'osm-dark',
+                    minzoom: 0,
+                    maxzoom: 22
+                }
+            ]
+        };
         
         this.map = new mapboxgl.Map({
             container: this.containerId,
-            style: style,
+            style: darkStyle,
             center: [this.options.center[1], this.options.center[0]], // [lng, lat] format
             zoom: this.options.zoom,
             attributionControl: true
@@ -245,29 +250,38 @@ class TrafficMap {
     }
 
     addTrafficLegend() {
-        const legend = L.control({ position: 'bottomright' });
-        
-        legend.onAdd = (map) => {
-            const div = L.DomUtil.create('div', 'traffic-legend');
-            div.style.backgroundColor = 'rgba(31, 31, 31, 0.9)';
-            div.style.color = 'white';
-            div.style.padding = '8px';
-            div.style.fontSize = '12px';
-            div.style.borderRadius = '4px';
-            div.style.border = '1px solid #333';
+        // Create custom control for Mapbox GL
+        class TrafficLegendControl {
+            onAdd(map) {
+                this._map = map;
+                this._container = document.createElement('div');
+                this._container.className = 'mapboxgl-ctrl mapboxgl-ctrl-group traffic-legend';
+                this._container.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                this._container.style.color = 'white';
+                this._container.style.padding = '10px';
+                this._container.style.fontSize = '12px';
+                this._container.style.borderRadius = '4px';
+                this._container.style.border = '1px solid #444';
+                this._container.style.backdropFilter = 'blur(10px)';
+                
+                this._container.innerHTML = `
+                    <div style="font-weight: bold; margin-bottom: 8px; font-size: 13px;">Natężenie ruchu</div>
+                    <div style="margin-bottom: 4px;"><span style="color: #28a745; font-size: 14px;">●</span> Płynny</div>
+                    <div style="margin-bottom: 4px;"><span style="color: #ffc107; font-size: 14px;">●</span> Umiarkowany</div>
+                    <div style="margin-bottom: 4px;"><span style="color: #fd7e14; font-size: 14px;">●</span> Intensywny</div>
+                    <div><span style="color: #dc3545; font-size: 14px;">●</span> Korek</div>
+                `;
+                
+                return this._container;
+            }
             
-            div.innerHTML = `
-                <div style="font-weight: bold; margin-bottom: 5px;">Natężenie ruchu</div>
-                <div><span style="color: #28a745;">●</span> Płynny</div>
-                <div><span style="color: #ffc107;">●</span> Umiarkowany</div>
-                <div><span style="color: #fd7e14;">●</span> Intensywny</div>
-                <div><span style="color: #dc3545;">●</span> Korek</div>
-            `;
-            
-            return div;
-        };
+            onRemove() {
+                this._container.parentNode.removeChild(this._container);
+                this._map = undefined;
+            }
+        }
         
-        legend.addTo(this.map);
+        this.map.addControl(new TrafficLegendControl(), 'bottom-right');
     }
 
     async updateTrafficData() {
@@ -616,30 +630,34 @@ const trafficStyles = `
         height: 300px;
         border-radius: 8px;
         overflow: hidden;
-        border: 1px solid #333;
+        border: 1px solid #444;
+        background-color: #1a1a1a;
     }
     
     .traffic-legend {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     }
     
-    .leaflet-control-custom {
-        background: #1f1f1f !important;
-        border: 1px solid #333 !important;
+    .mapboxgl-popup-content {
+        background: #2a2a2a !important;
+        color: #ffffff !important;
+        border-radius: 8px !important;
+        border: 1px solid #444 !important;
     }
     
-    .leaflet-control-custom:hover {
-        background: #333 !important;
+    .mapboxgl-popup-tip {
+        border-top-color: #2a2a2a !important;
+        border-bottom-color: #2a2a2a !important;
     }
     
-    .leaflet-popup-content-wrapper {
-        background: #fff;
-        color: #333;
-        border-radius: 8px;
+    .mapboxgl-ctrl-attrib {
+        background-color: rgba(0, 0, 0, 0.7) !important;
+        color: #ffffff !important;
     }
     
-    .leaflet-popup-tip {
-        background: #fff;
+    .mapboxgl-ctrl-attrib a {
+        color: #66b3ff !important;
     }
     
     @keyframes spin {
