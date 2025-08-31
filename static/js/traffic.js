@@ -16,16 +16,19 @@ class TrafficMap {
     }
 
     init() {
-        this.getUserLocation().then(() => {
-            this.createMap();
-            this.addTrafficLayer();
-            this.addControls();
-            this.updateTrafficData();
+        this.getUserLocation().then(async () => {
+            await this.createMap();
             
-            // Update traffic data every 5 minutes
-            setInterval(() => {
+            this.map.on('load', () => {
+                this.addTrafficLayer();
+                this.addControls();
                 this.updateTrafficData();
-            }, 300000);
+                
+                // Update traffic data every 5 minutes
+                setInterval(() => {
+                    this.updateTrafficData();
+                }, 300000);
+            });
         });
     }
 
@@ -54,46 +57,82 @@ class TrafficMap {
         }
     }
 
-    createMap() {
-        // Using Leaflet for the map
-        this.map = L.map(this.containerId, {
-            center: this.options.center,
+    async createMap() {
+        // Load the TomTom monochrome style
+        let style;
+        try {
+            const response = await fetch('/static/js/monochrome_light_orbis_draft.json');
+            style = await response.json();
+            console.log('Loaded TomTom monochrome style successfully');
+        } catch (error) {
+            console.error('Failed to load custom style, using fallback:', error);
+            // Fallback to basic style
+            style = {
+                version: 8,
+                sources: {
+                    'osm': {
+                        type: 'raster',
+                        tiles: ['https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        tileSize: 256
+                    }
+                },
+                layers: [{
+                    id: 'osm',
+                    type: 'raster',
+                    source: 'osm'
+                }]
+            };
+        }
+
+        // Initialize Mapbox GL map with TomTom style
+        // No access token needed for custom styles
+        this.map = new mapboxgl.Map({
+            container: this.containerId,
+            style: style,
+            center: [this.options.center[1], this.options.center[0]], // [lng, lat] format
             zoom: this.options.zoom,
-            zoomControl: false
+            attributionControl: true
         });
 
-        // Add dark themed OpenStreetMap tiles - reliable and working
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors | Traffic data by TomTom'
-        }).addTo(this.map);
-
-        // Add custom zoom control
-        L.control.zoom({
-            position: 'topright'
-        }).addTo(this.map);
-
+        // Add navigation controls
+        this.map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        
         // Add user location marker if available
         if (this.userLocation) {
-            const userMarker = L.marker(this.userLocation, {
-                icon: L.icon({
-                    iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-                            <circle cx="12" cy="12" r="8" fill="#007bff" stroke="#fff" stroke-width="2"/>
-                            <circle cx="12" cy="12" r="3" fill="#fff"/>
-                        </svg>
-                    `),
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 12]
-                })
-            }).addTo(this.map);
-            
-            userMarker.bindPopup('Twoja lokalizacja');
+            const marker = new mapboxgl.Marker({
+                color: '#007bff'
+            })
+            .setLngLat([this.userLocation[1], this.userLocation[0]])
+            .setPopup(new mapboxgl.Popup().setText('Twoja lokalizacja'))
+            .addTo(this.map);
         }
     }
 
     addTrafficLayer() {
-        // Create traffic layer group
-        this.trafficLayer = L.layerGroup().addTo(this.map);
+        // Add traffic source to map for GeoJSON data
+        this.map.addSource('traffic-flow', {
+            type: 'geojson',
+            data: {
+                type: 'FeatureCollection',
+                features: []
+            }
+        });
+
+        // Add traffic layer with line styling
+        this.map.addLayer({
+            id: 'traffic-lines',
+            type: 'line',
+            source: 'traffic-flow',
+            layout: {
+                'line-join': 'round',
+                'line-cap': 'round'
+            },
+            paint: {
+                'line-color': ['get', 'color'],
+                'line-width': ['get', 'width'],
+                'line-opacity': 0.8
+            }
+        });
         
         // Add traffic legend
         this.addTrafficLegend();
@@ -373,29 +412,67 @@ class TrafficMap {
     }
 
     addTrafficIndicators(trafficData) {
-        trafficData.forEach(traffic => {
+        // Convert traffic data to GeoJSON features for Mapbox GL
+        const features = trafficData.map(traffic => {
             const color = this.getTrafficColor(traffic.level);
             const weight = this.getTrafficWeight(traffic.level);
             
-            // Add traffic line
-            const trafficLine = L.polyline(traffic.coords, {
-                color: color,
-                weight: weight,
-                opacity: 0.8
-            }).addTo(this.trafficLayer);
+            // Convert coords to GeoJSON LineString format [lng, lat]
+            const coordinates = traffic.coords.map(coord => [coord[1], coord[0]]);
             
-            // Add popup with traffic info
+            return {
+                type: 'Feature',
+                geometry: {
+                    type: 'LineString',
+                    coordinates: coordinates
+                },
+                properties: {
+                    color: color,
+                    width: weight,
+                    level: traffic.level,
+                    name: traffic.name,
+                    speed: traffic.speed,
+                    freeFlowSpeed: traffic.freeFlowSpeed,
+                    confidence: traffic.confidence,
+                    speedRatio: traffic.speedRatio
+                }
+            };
+        });
+
+        // Update the traffic source with new data
+        this.map.getSource('traffic-flow').setData({
+            type: 'FeatureCollection',
+            features: features
+        });
+
+        // Add click handler for popups
+        this.map.off('click', 'traffic-lines'); // Remove existing handler
+        this.map.on('click', 'traffic-lines', (e) => {
+            const properties = e.features[0].properties;
             const popupContent = `
                 <div style="color: #333;">
-                    <strong>${traffic.name}</strong><br>
-                    Natężenie: ${this.getTrafficLevelName(traffic.level)}<br>
-                    Aktualna prędkość: ${traffic.speed} km/h<br>
-                    ${traffic.freeFlowSpeed ? `Prędkość bez korków: ${traffic.freeFlowSpeed} km/h<br>` : ''}
-                    ${traffic.confidence ? `Pewność danych: ${traffic.confidence}%<br>` : ''}
-                    ${traffic.speedRatio ? `Płynność ruchu: ${traffic.speedRatio}%` : ''}
+                    <strong>${properties.name}</strong><br>
+                    Natężenie: ${this.getTrafficLevelName(properties.level)}<br>
+                    Aktualna prędkość: ${properties.speed} km/h<br>
+                    ${properties.freeFlowSpeed ? `Prędkość bez korków: ${properties.freeFlowSpeed} km/h<br>` : ''}
+                    ${properties.confidence ? `Pewność danych: ${properties.confidence}%<br>` : ''}
+                    ${properties.speedRatio ? `Płynność ruchu: ${properties.speedRatio}%` : ''}
                 </div>
             `;
-            trafficLine.bindPopup(popupContent);
+            
+            new mapboxgl.Popup()
+                .setLngLat(e.lngLat)
+                .setHTML(popupContent)
+                .addTo(this.map);
+        });
+
+        // Change cursor on hover
+        this.map.on('mouseenter', 'traffic-lines', () => {
+            this.map.getCanvas().style.cursor = 'pointer';
+        });
+
+        this.map.on('mouseleave', 'traffic-lines', () => {
+            this.map.getCanvas().style.cursor = '';
         });
     }
 
