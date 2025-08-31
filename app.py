@@ -52,6 +52,8 @@ else:
         "pool_pre_ping": True,
     }
 
+    
+
 from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
 
 # Initialize the app with the extension
@@ -78,6 +80,9 @@ def get_current_user():
 def is_admin():
     user = get_current_user()
     return user and user.is_admin
+
+tomtom_api_key = os.getenv("TOMTOM_API_KEY")
+
 
 
 # Initialize authentication system
@@ -871,6 +876,7 @@ def api_check_favorite(license_plate):
     ).first()
 
     return jsonify({'is_favorite': favorite is not None})
+
 
 
 @app.route('/manifest.json')
