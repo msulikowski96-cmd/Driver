@@ -15,38 +15,68 @@ class TrafficMap {
         this.init();
     }
 
-    init() {
-        this.getUserLocation().then(async () => {
-            try {
-                await this.createMap();
+    async init() {
+        try {
+            // Wait for Mapbox GL JS to load
+            await this.waitForMapboxGL();
+            
+            await this.getUserLocation();
+            await this.createMap();
+            
+            this.map.on('load', () => {
+                this.addTrafficLayer();
+                this.addControls();
+                this.updateTrafficData();
                 
-                this.map.on('load', () => {
-                    this.addTrafficLayer();
-                    this.addControls();
+                // Update traffic data every 5 minutes
+                setInterval(() => {
                     this.updateTrafficData();
-                    
-                    // Update traffic data every 5 minutes
-                    setInterval(() => {
-                        this.updateTrafficData();
-                    }, 300000);
-                });
-            } catch (error) {
-                console.error('Failed to initialize traffic map:', error);
-                // Show error message to user
-                const container = document.getElementById(this.containerId);
-                if (container) {
-                    container.innerHTML = `
-                        <div style="padding: 20px; text-align: center; color: #dc3545;">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <p>Nie udało się załadować mapy ruchu.</p>
-                            <p>Odśwież stronę lub spróbuj ponownie później.</p>
-                            <button class="btn btn-primary btn-sm" onclick="location.reload()">
-                                <i class="fas fa-sync me-1"></i>Odśwież stronę
-                            </button>
-                        </div>
-                    `;
-                }
+                }, 300000);
+            });
+        } catch (error) {
+            console.error('Failed to initialize traffic map:', error);
+            // Show error message to user
+            const container = document.getElementById(this.containerId);
+            if (container) {
+                container.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: #dc3545;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Nie udało się załadować mapy ruchu.</p>
+                        <p>${error.message || 'Sprawdź połączenie internetowe.'}</p>
+                        <button class="btn btn-primary btn-sm" onclick="location.reload()">
+                            <i class="fas fa-sync me-1"></i>Odśwież stronę
+                        </button>
+                    </div>
+                `;
             }
+        }
+    }
+
+    waitForMapboxGL() {
+        return new Promise((resolve, reject) => {
+            // If already loaded, resolve immediately
+            if (typeof mapboxgl !== 'undefined') {
+                console.log('Mapbox GL JS already available');
+                resolve();
+                return;
+            }
+
+            // Wait up to 10 seconds for the library to load
+            let attempts = 0;
+            const maxAttempts = 100; // 10 seconds with 100ms intervals
+            
+            const checkInterval = setInterval(() => {
+                attempts++;
+                
+                if (typeof mapboxgl !== 'undefined') {
+                    console.log('Mapbox GL JS loaded after', attempts * 100, 'ms');
+                    clearInterval(checkInterval);
+                    resolve();
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(checkInterval);
+                    reject(new Error('Mapbox GL JS failed to load within 10 seconds'));
+                }
+            }, 100);
         });
     }
 

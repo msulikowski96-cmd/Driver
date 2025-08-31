@@ -5,12 +5,47 @@
 
 {% block head %}
 <!-- Mapbox GL JS for WebGL rendering -->
-<script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
 <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+<script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
 
-<!-- Alternative: Load Mapbox GL JS from CDN with integrity check -->
-<script src="https://cdn.jsdelivr.net/npm/mapbox-gl@2.15.0/dist/mapbox-gl.min.js"></script>
-<link href="https://cdn.jsdelivr.net/npm/mapbox-gl@2.15.0/dist/mapbox-gl.min.css" rel="stylesheet">
+<script>
+// Check if Mapbox GL JS loaded properly
+window.addEventListener('load', function() {
+    if (typeof mapboxgl === 'undefined') {
+        console.error('Mapbox GL JS failed to load from primary source, trying fallback...');
+        
+        // Try loading from CDN as fallback
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/mapbox-gl@2.15.0/dist/mapbox-gl.min.js';
+        script.onload = function() {
+            console.log('Mapbox GL JS loaded from fallback CDN');
+            // Re-initialize traffic map if it failed earlier
+            if (window.mainTrafficMap && !window.mainTrafficMap.map) {
+                window.mainTrafficMap.init();
+            }
+        };
+        script.onerror = function() {
+            console.error('Both Mapbox GL JS sources failed to load');
+            const container = document.getElementById('main-traffic-map');
+            if (container) {
+                container.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: #dc3545; background: #f8f9fa; border-radius: 8px;">
+                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                        <h5>Nie można załadować biblioteki map</h5>
+                        <p>Sprawdź połączenie internetowe i odśwież stronę.</p>
+                        <button class="btn btn-primary" onclick="location.reload()">
+                            <i class="fas fa-sync me-1"></i>Odśwież stronę
+                        </button>
+                    </div>
+                `;
+            }
+        };
+        document.head.appendChild(script);
+    } else {
+        console.log('Mapbox GL JS loaded successfully');
+    }
+});
+</script>
 {% endblock %}
 
 {% block content %}
@@ -142,18 +177,22 @@
 <script>
 let mainTrafficMap;
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     // Update location status
     updateLocationStatus();
     
-    // Initialize main traffic map
-    mainTrafficMap = new TrafficMap('main-traffic-map', {
-        zoom: 12
-    });
-    
-    // Update last update time
-    updateLastUpdateTime();
-    setInterval(updateLastUpdateTime, 60000); // Update every minute
+    try {
+        // Initialize main traffic map
+        mainTrafficMap = new TrafficMap('main-traffic-map', {
+            zoom: 12
+        });
+        
+        // Update last update time
+        updateLastUpdateTime();
+        setInterval(updateLastUpdateTime, 60000); // Update every minute
+    } catch (error) {
+        console.error('Failed to initialize traffic map:', error);
+    }
 });
 
 function updateLocationStatus() {
