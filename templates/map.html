@@ -278,7 +278,7 @@ document.querySelectorAll('.incident-item').forEach(item => {
         const lat = parseFloat(this.dataset.lat);
         const lng = parseFloat(this.dataset.lng);
         
-        map.setCenter({ lat: lat, lng: lng });
+        map.setView([lat, lng], 15);
         map.setZoom(15);
         
         // Find and click the corresponding marker
