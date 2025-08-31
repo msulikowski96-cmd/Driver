@@ -3,6 +3,13 @@
 
 {% block title %}Mapa zdarzeń{% endblock %}
 
+{% block head %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<!-- Leaflet JavaScript -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="row">
@@ -116,13 +123,16 @@
 let map;
 let selectedLocation = null;
 let markers = [];
+let tempMarker = null;
 
 function initMap() {
     // Domyślna lokalizacja - Warszawa
-    map = new google.maps.Map(document.getElementById('map'), {
-        zoom: 10,
-        center: { lat: 52.237049, lng: 21.017532 }
-    });
+    map = L.map('map').setView([52.237049, 21.017532], 10);
+
+    // Dodaj kafelki OpenStreetMap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
 
     // Dodaj znaczniki dla istniejących zdarzeń
     {% for incident in incidents %}
@@ -139,27 +149,26 @@ function initMap() {
 
     // Nasłuchuj kliknięć na mapę
     {% if session.user_id %}
-    map.addListener('click', function(event) {
+    map.on('click', function(e) {
         selectedLocation = {
-            lat: event.latLng.lat(),
-            lng: event.latLng.lng()
+            lat: e.latlng.lat,
+            lng: e.latlng.lng
         };
         
         // Usuń poprzedni znacznik tymczasowy
-        if (window.tempMarker) {
-            window.tempMarker.setMap(null);
+        if (tempMarker) {
+            map.removeLayer(tempMarker);
         }
         
         // Dodaj nowy znacznik tymczasowy
-        window.tempMarker = new google.maps.Marker({
-            position: selectedLocation,
-            map: map,
-            icon: {
-                url: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJDOC4xIDIgNSA1LjEgNSA5QzUgMTQuMiAxMiAyMiAxMiAyMkMxMiAyMiAxOSAxNC4yIDE5IDlDMTkgNS4xIDE1LjkgMiAxMiAyWk0xMiAxMS41QzEwLjYgMTEuNSA5LjUgMTAuNCAgOS41IDlDOS41IDcuNiAxMC42IDYuNSAxMiA2LjVDMTMuNCA2LjUgMTQuNSA3LjYgMTQuNSA5QzE0LjUgMTAuNCAxMy40IDExLjUgMTIgMTEuNVoiIGZpbGw9IiNGRkE1MDAiLz4KPHN2Zz4K',
-                scaledSize: new google.maps.Size(30, 30)
-            },
-            title: 'Wybrana lokalizacja'
-        });
+        tempMarker = L.marker([selectedLocation.lat, selectedLocation.lng], {
+            icon: L.divIcon({
+                className: 'custom-div-icon',
+                html: '<div style="background-color: #FFA500; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white;"></div>',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            })
+        }).addTo(map);
         
         document.getElementById('selected-location').innerHTML = 
             '<small class="text-success"><i class="fas fa-map-marker-alt me-1"></i>Lokalizacja wybrana</small>';
@@ -177,31 +186,26 @@ function addIncidentMarker(lat, lng, licensePlate, type, description, severity, 
         'other': '#6C757D'
     };
     
-    const marker = new google.maps.Marker({
-        position: { lat: lat, lng: lng },
-        map: map,
-        icon: {
-            url: `data:image/svg+xml;base64,${btoa(`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.1 2 5 5.1 5 9C5 14.2 12 22 12 22C12 22 19 14.2 19 9C19 5.1 15.9 2 12 2ZM12 11.5C10.6 11.5 9.5 10.4 9.5 9C9.5 7.6 10.6 6.5 12 6.5C13.4 6.5 14.5 7.6 14.5 9C14.5 10.4 13.4 11.5 12 11.5Z" fill="${iconColors[type] || '#6C757D'}"/></svg>`)}`,
-            scaledSize: new google.maps.Size(25, 25)
-        },
-        title: `${licensePlate} - ${type}`
-    });
+    const marker = L.marker([lat, lng], {
+        icon: L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div style="background-color: ${iconColors[type] || '#6C757D'}; width: 25px; height: 25px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">!</div>`,
+            iconSize: [25, 25],
+            iconAnchor: [12, 12]
+        })
+    }).addTo(map);
     
-    const infoWindow = new google.maps.InfoWindow({
-        content: `
-            <div>
-                <h6><strong>${licensePlate}</strong></h6>
-                <p><strong>Typ:</strong> ${getIncidentTypeName(type)}</p>
-                <p><strong>Opis:</strong> ${description}</p>
-                <p><strong>Zagrożenie:</strong> ${'★'.repeat(severity)}${'☆'.repeat(5-severity)}</p>
-                <p><small><strong>Data:</strong> ${date}</small></p>
-            </div>
-        `
-    });
+    const popupContent = `
+        <div>
+            <h6><strong>${licensePlate}</strong></h6>
+            <p><strong>Typ:</strong> ${getIncidentTypeName(type)}</p>
+            <p><strong>Opis:</strong> ${description}</p>
+            <p><strong>Zagrożenie:</strong> ${'★'.repeat(severity)}${'☆'.repeat(5-severity)}</p>
+            <p><small><strong>Data:</strong> ${date}</small></p>
+        </div>
+    `;
     
-    marker.addListener('click', function() {
-        infoWindow.open(map, marker);
-    });
+    marker.bindPopup(popupContent);
     
     markers.push(marker);
 }
@@ -248,8 +252,9 @@ document.getElementById('incident-form').addEventListener('submit', function(e) 
             // Reset form
             document.getElementById('incident-form').reset();
             selectedLocation = null;
-            if (window.tempMarker) {
-                window.tempMarker.setMap(null);
+            if (tempMarker) {
+                map.removeLayer(tempMarker);
+                tempMarker = null;
             }
             document.getElementById('selected-location').innerHTML = '';
             document.getElementById('submit-incident').disabled = true;
@@ -278,15 +283,17 @@ document.querySelectorAll('.incident-item').forEach(item => {
         
         // Find and click the corresponding marker
         markers.forEach(marker => {
-            const pos = marker.getPosition();
-            if (Math.abs(pos.lat() - lat) < 0.0001 && Math.abs(pos.lng() - lng) < 0.0001) {
-                google.maps.event.trigger(marker, 'click');
+            const pos = marker.getLatLng();
+            if (Math.abs(pos.lat - lat) < 0.0001 && Math.abs(pos.lng - lng) < 0.0001) {
+                marker.openPopup();
             }
         });
     });
 });
 </script>
 
-<!-- Google Maps API -->
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initMap" async defer></script>
+<!-- Initialize map when page loads -->
+<script>
+document.addEventListener('DOMContentLoaded', initMap);
+</script>
 {% endblock %}

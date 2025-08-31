@@ -200,53 +200,85 @@ class TrafficMap {
     }
 
     addControls() {
-        // Traffic toggle control
-        const trafficControl = L.Control.extend({
-            options: {
-                position: 'topleft'
-            },
-            onAdd: (map) => {
-                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-                container.style.backgroundColor = '#1f1f1f';
-                container.style.width = '30px';
-                container.style.height = '30px';
-                container.style.cursor = 'pointer';
-                container.innerHTML = '<i class="fas fa-road" style="color: white; line-height: 30px; text-align: center; display: block;"></i>';
-                container.title = 'Toggle Traffic';
+        // Add custom traffic control for Mapbox GL JS
+        class TrafficToggleControl {
+            onAdd(map) {
+                this._map = map;
+                this._container = document.createElement('div');
+                this._container.className = 'mapboxgl-ctrl mapboxgl-ctrl-group';
+                this._container.innerHTML = `
+                    <button type="button" class="mapboxgl-ctrl-icon" aria-label="Toggle Traffic" style="background-color: #1f1f1f;">
+                        <i class="fas fa-road" style="color: white;"></i>
+                    </button>
+                `;
                 
-                container.onclick = () => {
+                this._container.addEventListener('click', () => {
                     this.toggleTraffic();
-                };
+                });
                 
-                return container;
+                return this._container;
             }
-        });
-        
-        new trafficControl().addTo(this.map);
-
-        // Refresh control
-        const refreshControl = L.Control.extend({
-            options: {
-                position: 'topleft'
-            },
-            onAdd: (map) => {
-                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-                container.style.backgroundColor = '#1f1f1f';
-                container.style.width = '30px';
-                container.style.height = '30px';
-                container.style.cursor = 'pointer';
-                container.innerHTML = '<i class="fas fa-sync" style="color: white; line-height: 30px; text-align: center; display: block;"></i>';
-                container.title = 'Refresh Traffic Data';
-                
-                container.onclick = () => {
-                    this.refreshTrafficData();
-                };
-                
-                return container;
+            
+            onRemove() {
+                this._container.parentNode.removeChild(this._container);
+                this._map = undefined;
             }
-        });
+            
+            toggleTraffic() {
+                // Toggle traffic layer visibility
+                const visibility = this._map.getLayoutProperty('traffic-lines', 'visibility');
+                if (visibility === 'visible') {
+                    this._map.setLayoutProperty('traffic-lines', 'visibility', 'none');
+                } else {
+                    this._map.setLayoutProperty('traffic-lines', 'visibility', 'visible');
+                }
+            }
+        }
         
-        new refreshControl().addTo(this.map);
+        // Add refresh control
+        class RefreshControl {
+            onAdd(map) {
+                this._map = map;
+                this._container = document.createElement('div');
+                this._container.className = 'mapboxgl-ctrl mapboxgl-ctrl-group';
+                this._container.innerHTML = `
+                    <button type="button" class="mapboxgl-ctrl-icon" aria-label="Refresh Traffic" style="background-color: #1f1f1f;">
+                        <i class="fas fa-sync" style="color: white;"></i>
+                    </button>
+                `;
+                
+                this._container.addEventListener('click', () => {
+                    this.refreshTraffic();
+                });
+                
+                return this._container;
+            }
+            
+            onRemove() {
+                this._container.parentNode.removeChild(this._container);
+                this._map = undefined;
+            }
+            
+            refreshTraffic() {
+                const icon = this._container.querySelector('.fa-sync');
+                if (icon) {
+                    icon.classList.add('fa-spin');
+                }
+                
+                // Trigger traffic data update
+                window.trafficMapInstance.updateTrafficData().then(() => {
+                    if (icon) {
+                        icon.classList.remove('fa-spin');
+                    }
+                });
+            }
+        }
+        
+        this.map.addControl(new TrafficToggleControl(), 'top-left');
+        this.map.addControl(new RefreshControl(), 'top-left');
+        
+        // Store reference for refresh control
+        window.trafficMapInstance = this;
     }
 
     addTrafficLegend() {
@@ -291,9 +323,6 @@ class TrafficMap {
             
             // Fetch real traffic data from TomTom API
             const trafficData = await this.fetchTrafficData(bounds);
-            
-            // Clear existing traffic markers
-            this.trafficLayer.clearLayers();
             
             // Add traffic indicators
             this.addTrafficIndicators(trafficData);
@@ -578,10 +607,11 @@ class TrafficMap {
     }
 
     toggleTraffic() {
-        if (this.map.hasLayer(this.trafficLayer)) {
-            this.map.removeLayer(this.trafficLayer);
+        const visibility = this.map.getLayoutProperty('traffic-lines', 'visibility');
+        if (visibility === 'visible') {
+            this.map.setLayoutProperty('traffic-lines', 'visibility', 'none');
         } else {
-            this.map.addLayer(this.trafficLayer);
+            this.map.setLayoutProperty('traffic-lines', 'visibility', 'visible');
         }
     }
 
@@ -601,7 +631,7 @@ class TrafficMap {
 
     resize() {
         if (this.map) {
-            this.map.invalidateSize();
+            this.map.resize();
         }
     }
 }
