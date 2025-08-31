@@ -1,6 +1,15 @@
+
 import os
 import logging
+import re
+from datetime import datetime
+from functools import wraps
+
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import DeclarativeBase
+from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Load environment variables from .env file if it exists
 try:
@@ -9,13 +18,6 @@ try:
 except ImportError:
     # python-dotenv not installed, continue without it
     pass
-
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
-from werkzeug.middleware.proxy_fix import ProxyFix
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
-import re
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -56,46 +58,72 @@ db.init_app(app)
 # Import models after db initialization to avoid circular imports
 from models import User, Vehicle, Rating, Comment, Report, Incident, UserStatistics, CommentVote, Favorite
 
+# External API configuration
+tomtom_api_key = os.getenv("TOMTOM_API_KEY")
+
 
 # Helper functions for authentication
 def is_logged_in():
+    """Check if user is currently logged in"""
     return 'user_id' in session
 
 
 def get_current_user():
+    """Get the currently logged in user object"""
     if is_logged_in():
         try:
             user_id = session.get('user_id')
             if user_id:
                 return User.query.get(user_id)
         except Exception as e:
-            print(f"Error getting current user: {e}")
+            logging.error(f"Error getting current user: {e}")
             session.clear()
     return None
 
 
 def is_admin():
+    """Check if current user has admin privileges"""
     user = get_current_user()
     return user and user.is_admin
 
 
-tomtom_api_key = os.getenv("TOMTOM_API_KEY")
+def login_required(f):
+    """Decorator to require user login for protected routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not is_logged_in():
+            flash('Musisz być zalogowany, aby uzyskać dostęp do tej strony.', 'warning')
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
 
 
-# Initialize authentication system
-def init_auth(app):
+def admin_required(f):
+    """Decorator to require admin privileges for protected routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not is_logged_in():
+            flash('Musisz być zalogowany, aby uzyskać dostęp do tej strony.', 'warning')
+            return redirect(url_for('login', next=request.url))
+        
+        if not is_admin():
+            flash('Brak uprawnień administratora!', 'danger')
+            return redirect(url_for('index'))
+        
+        return f(*args, **kwargs)
+    return decorated_function
 
-    @app.context_processor
-    def inject_auth_functions():
-        return {
-            'get_current_user': get_current_user,
-            'is_logged_in': is_logged_in,
-            'is_admin': is_admin
-        }
+
+def validate_license_plate(plate):
+    """Validate Polish license plate format"""
+    if not plate:
+        return False
+    # Polish license plate validation - only letters and numbers
+    return bool(re.match(r'^[A-Z0-9]+$', plate.upper().replace(' ', '')))
 
 
-# Function to create admin user
 def create_admin_user():
+    """Create default admin user if it doesn't exist"""
     admin_user = User.query.filter_by(username='admin').first()
     if not admin_user:
         admin_user = User()
@@ -105,7 +133,18 @@ def create_admin_user():
         admin_user.is_admin = True
         db.session.add(admin_user)
         db.session.commit()
-        print("Admin user created: username=admin, password=admin123")
+        logging.info("Admin user created: username=admin, password=admin123")
+
+
+def init_auth(app):
+    """Initialize authentication system"""
+    @app.context_processor
+    def inject_auth_functions():
+        return {
+            'get_current_user': get_current_user,
+            'is_logged_in': is_logged_in,
+            'is_admin': is_admin
+        }
 
 
 # Initialize authentication system and create admin user
@@ -114,14 +153,13 @@ init_auth(app)
 # Create database tables
 with app.app_context():
     db.create_all()
-    # Create admin user if it doesn't exist
     create_admin_user()
 
 
 # Routes
 @app.route('/')
 def index():
-    # Get recently rated vehicles
+    """Home page with recently rated vehicles"""
     recent_ratings = db.session.query(Rating).order_by(
         Rating.created_at.desc()).limit(10).all()
     recent_vehicles = []
@@ -140,6 +178,7 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """User login page"""
     if request.method == 'POST':
         username = request.form.get('username', '')
         password = request.form.get('password', '')
@@ -162,6 +201,7 @@ def login():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    """User registration page"""
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         email = request.form.get('email', '').strip()
@@ -196,6 +236,7 @@ def register():
 
 @app.route('/logout')
 def logout():
+    """User logout"""
     session.pop('user_id', None)
     flash('Wylogowano pomyślnie!', 'info')
     return redirect(url_for('index'))
@@ -203,6 +244,7 @@ def logout():
 
 @app.route('/vehicle/<license_plate>')
 def vehicle_detail(license_plate):
+    """Vehicle detail page"""
     # Validate license plate format
     if not validate_license_plate(license_plate):
         flash('Nieprawidłowy format numeru rejestracyjnego!', 'warning')
@@ -217,8 +259,7 @@ def vehicle_detail(license_plate):
         vehicle.license_plate = license_plate.upper()
         db.session.add(vehicle)
         db.session.commit()
-        flash(f'Pojazd {license_plate.upper()} został dodany do bazy danych!',
-              'success')
+        flash(f'Pojazd {license_plate.upper()} został dodany do bazy danych!', 'success')
 
     if vehicle.is_blocked and not is_admin():
         flash('Ten pojazd został zablokowany!', 'danger')
@@ -228,8 +269,7 @@ def vehicle_detail(license_plate):
     comments = Comment.query.filter_by(vehicle_id=vehicle.id).order_by(
         Comment.created_at.desc()).all()
 
-    avg_rating = sum(r.rating
-                     for r in ratings) / len(ratings) if ratings else 0
+    avg_rating = sum(r.rating for r in ratings) / len(ratings) if ratings else 0
 
     # Check if current user has already rated this vehicle
     user_rating = None
@@ -247,6 +287,7 @@ def vehicle_detail(license_plate):
 
 @app.route('/search')
 def search():
+    """Search for vehicles by license plate"""
     query = request.args.get('q', '').strip().upper()
     vehicles = []
 
@@ -265,6 +306,7 @@ def search():
 
 @app.route('/ranking')
 def ranking():
+    """Ranking page for vehicles"""
     sort_order = request.args.get('sort', 'best')  # best or worst
 
     # Get all vehicles with their average ratings
@@ -286,20 +328,43 @@ def ranking():
 
     # Sort by average rating
     reverse_order = sort_order == 'best'
-    vehicles_with_ratings.sort(key=lambda x: x['avg_rating'],
-                               reverse=reverse_order)
+    vehicles_with_ratings.sort(key=lambda x: x['avg_rating'], reverse=reverse_order)
 
     return render_template('ranking.html',
                            vehicles_with_ratings=vehicles_with_ratings,
                            sort_order=sort_order)
 
 
-@app.route('/admin')
-def admin():
-    if not is_admin():
-        flash('Brak uprawnień administratora!', 'danger')
-        return redirect(url_for('index'))
+@app.route('/ranking_users')
+def ranking_users():
+    """User ranking page"""
+    sort_by = request.args.get('sort', 'reputation')
 
+    if sort_by == 'reputation':
+        top_users = db.session.query(UserStatistics, User).join(User).order_by(
+            UserStatistics.reputation_score.desc()).limit(50).all()
+    elif sort_by == 'ratings':
+        top_users = db.session.query(UserStatistics, User).join(User).order_by(
+            UserStatistics.total_ratings.desc()).limit(50).all()
+    elif sort_by == 'comments':
+        top_users = db.session.query(UserStatistics, User).join(User).order_by(
+            UserStatistics.total_comments.desc()).limit(50).all()
+    elif sort_by == 'incidents':
+        top_users = db.session.query(UserStatistics, User).join(User).order_by(
+            UserStatistics.total_incidents.desc()).limit(50).all()
+    else:
+        top_users = db.session.query(UserStatistics, User).join(User).order_by(
+            UserStatistics.reputation_score.desc()).limit(50).all()
+
+    return render_template('ranking_users.html',
+                           top_users=top_users,
+                           sort_by=sort_by)
+
+
+@app.route('/admin')
+@admin_required
+def admin():
+    """Admin panel"""
     reported_comments = Comment.query.filter(Comment.reports > 0).order_by(
         Comment.reports.desc()).all()
     blocked_vehicles = Vehicle.query.filter_by(is_blocked=True).all()
@@ -310,27 +375,98 @@ def admin():
 
 
 @app.route('/dashboard')
+@admin_required
 def dashboard():
-    if not is_admin():
-        flash('Brak uprawnień administratora!', 'danger')
-        return redirect(url_for('index'))
-
+    """Admin dashboard"""
     return render_template('dashboard.html')
 
 
-# Routes for traffic information
+@app.route('/profile')
+@login_required
+def profile():
+    """User profile page"""
+    user = get_current_user()
+    if not user:
+        flash('Błąd sesji użytkownika. Zaloguj się ponownie.', 'danger')
+        return redirect(url_for('login'))
+
+    # Get user's activity
+    user_ratings = Rating.query.filter_by(user_id=user.id).order_by(
+        Rating.created_at.desc()).limit(10).all()
+    user_comments = Comment.query.filter_by(user_id=user.id).order_by(
+        Comment.created_at.desc()).limit(10).all()
+    user_favorites = Favorite.query.filter_by(user_id=user.id).order_by(
+        Favorite.created_at.desc()).all()
+
+    # Get user statistics
+    user_stats = UserStatistics.query.filter_by(user_id=user.id).first()
+    if not user_stats:
+        user_stats = UserStatistics()
+        user_stats.user_id = user.id
+        db.session.add(user_stats)
+        db.session.commit()
+        user_stats.update_statistics()
+
+    return render_template('profile.html',
+                           user=user,
+                           user_ratings=user_ratings,
+                           user_comments=user_comments,
+                           user_favorites=user_favorites,
+                           user_stats=user_stats)
+
+
+@app.route('/statistics')
+@login_required
+def statistics():
+    """User statistics page"""
+    user = get_current_user()
+    if not user:
+        flash('Błąd sesji użytkownika. Zaloguj się ponownie.', 'danger')
+        return redirect(url_for('login'))
+
+    user_stats = UserStatistics.query.filter_by(user_id=user.id).first()
+
+    if not user_stats:
+        user_stats = UserStatistics()
+        user_stats.user_id = user.id
+        db.session.add(user_stats)
+        db.session.commit()
+        user_stats.update_statistics()
+
+    # Get top users for comparison
+    top_users = db.session.query(UserStatistics, User).join(User).order_by(
+        UserStatistics.reputation_score.desc()).limit(10).all()
+
+    return render_template('statistics.html',
+                           user_stats=user_stats,
+                           top_users=top_users)
+
+
+@app.route('/map')
+def map_view():
+    """Map view with incidents"""
+    incidents = Incident.query.order_by(
+        Incident.created_at.desc()).limit(50).all()
+    return render_template('map.html', incidents=incidents)
+
+
 @app.route('/traffic')
 def traffic():
     """Traffic map page"""
     return render_template('traffic.html')
 
 
+@app.route('/manifest.json')
+def manifest():
+    """PWA manifest file"""
+    return app.send_static_file('manifest.json')
+
+
 # API Routes
 @app.route('/api/rate', methods=['POST'])
+@login_required
 def api_rate():
-    if not is_logged_in():
-        return jsonify({'error': 'Musisz być zalogowany'}), 401
-
+    """API endpoint for rating a vehicle"""
     data = request.get_json()
     license_plate = data.get('license_plate', '').strip().upper()
     rating_value = data.get('rating')
@@ -369,8 +505,7 @@ def api_rate():
     db.session.commit()
 
     # Update user statistics
-    user_stats = UserStatistics.query.filter_by(
-        user_id=session['user_id']).first()
+    user_stats = UserStatistics.query.filter_by(user_id=session['user_id']).first()
     if not user_stats:
         user_stats = UserStatistics()
         user_stats.user_id = session['user_id']
@@ -382,10 +517,9 @@ def api_rate():
 
 
 @app.route('/api/comment', methods=['POST'])
+@login_required
 def api_comment():
-    if not is_logged_in():
-        return jsonify({'error': 'Musisz być zalogowany'}), 401
-
+    """API endpoint for adding a comment"""
     data = request.get_json()
     license_plate = data.get('license_plate', '').strip().upper()
     comment_text = data.get('comment', '').strip()
@@ -396,7 +530,7 @@ def api_comment():
     if not comment_text:
         return jsonify({'error': 'Komentarz nie może być pusty'}), 400
 
-    # Get or create vehicle (same as in rating API)
+    # Get or create vehicle
     vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
     if not vehicle:
         vehicle = Vehicle()
@@ -416,8 +550,7 @@ def api_comment():
     db.session.commit()
 
     # Update user statistics
-    user_stats = UserStatistics.query.filter_by(
-        user_id=session['user_id']).first()
+    user_stats = UserStatistics.query.filter_by(user_id=session['user_id']).first()
     if not user_stats:
         user_stats = UserStatistics()
         user_stats.user_id = session['user_id']
@@ -429,10 +562,9 @@ def api_comment():
 
 
 @app.route('/api/report_comment', methods=['POST'])
+@login_required
 def api_report_comment():
-    if not is_logged_in():
-        return jsonify({'error': 'Musisz być zalogowany'}), 401
-
+    """API endpoint for reporting a comment"""
     data = request.get_json()
     comment_id = data.get('comment_id')
 
@@ -459,342 +591,10 @@ def api_report_comment():
     return jsonify({'success': True, 'message': 'Komentarz został zgłoszony'})
 
 
-@app.route('/api/admin/delete_comment', methods=['POST'])
-def api_admin_delete_comment():
-    if not is_admin():
-        return jsonify({'error': 'Brak uprawnień'}), 403
-
-    data = request.get_json()
-    comment_id = data.get('comment_id')
-
-    comment = Comment.query.get(comment_id)
-    if not comment:
-        return jsonify({'error': 'Komentarz nie został znaleziony'}), 404
-
-    db.session.delete(comment)
-    db.session.commit()
-
-    return jsonify({'success': True, 'message': 'Komentarz został usunięty'})
-
-
-@app.route('/api/admin/block_vehicle', methods=['POST'])
-def api_admin_block_vehicle():
-    if not is_admin():
-        return jsonify({'error': 'Brak uprawnień'}), 403
-
-    data = request.get_json()
-    license_plate = data.get('license_plate', '').strip().upper()
-
-    vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
-    if not vehicle:
-        return jsonify({'error': 'Pojazd nie został znaleziony'}), 404
-
-    vehicle.is_blocked = not vehicle.is_blocked
-    db.session.commit()
-
-    status = 'zablokowany' if vehicle.is_blocked else 'odblokowany'
-    return jsonify({'success': True, 'message': f'Pojazd został {status}'})
-
-
-@app.route('/api/admin/clear_reports', methods=['POST'])
-def api_admin_clear_reports():
-    if not is_admin():
-        return jsonify({'error': 'Brak uprawnień'}), 403
-
-    data = request.get_json()
-    comment_id = data.get('comment_id')
-
-    comment = Comment.query.get(comment_id)
-    if not comment:
-        return jsonify({'error': 'Komentarz nie został znaleziony'}), 404
-
-    # Clear reports for this comment
-    comment.reports = 0
-    # Delete all report entries for this comment
-    Report.query.filter_by(comment_id=comment_id).delete()
-    db.session.commit()
-
-    return jsonify({
-        'success': True,
-        'message': 'Zgłoszenia zostały wyczyszczone'
-    })
-
-
-@app.route('/api/admin/stats', methods=['GET'])
-def api_admin_stats():
-    if not is_admin():
-        return jsonify({'error': 'Brak uprawnień'}), 403
-
-    # Calculate comprehensive statistics
-    total_users = User.query.count()
-    total_vehicles = Vehicle.query.count()
-    total_ratings = Rating.query.count()
-    total_comments = Comment.query.count()
-    total_reports = Report.query.count()
-    blocked_vehicles = Vehicle.query.filter_by(is_blocked=True).count()
-
-    # Monthly registration stats (last 6 months)
-    from sqlalchemy import extract, func
-    monthly_users = db.session.query(
-        extract('month', User.created_at).label('month'),
-        extract('year', User.created_at).label('year'),
-        func.count(User.id).label('count')).group_by(
-            extract('year', User.created_at),
-            extract('month', User.created_at)).order_by(
-                extract('year', User.created_at),
-                extract('month', User.created_at)).limit(6).all()
-
-    # Top rated vehicles
-    top_vehicles = db.session.query(
-        Vehicle.license_plate,
-        func.avg(Rating.rating).label('avg_rating'),
-        func.count(Rating.id).label('rating_count')).join(Rating).group_by(
-            Vehicle.id).having(func.count(Rating.id) >= 3).order_by(
-                func.avg(Rating.rating).desc()).limit(10).all()
-
-    # Rating distribution
-    rating_distribution = db.session.query(
-        Rating.rating,
-        func.count(Rating.id).label('count')).group_by(Rating.rating).order_by(
-            Rating.rating).all()
-
-    return jsonify({
-        'success': True,
-        'stats': {
-            'total_users':
-            total_users,
-            'total_vehicles':
-            total_vehicles,
-            'total_ratings':
-            total_ratings,
-            'total_comments':
-            total_comments,
-            'total_reports':
-            total_reports,
-            'blocked_vehicles':
-            blocked_vehicles,
-            'monthly_users': [{
-                'month': row.month,
-                'year': row.year,
-                'count': row.count
-            } for row in monthly_users],
-            'top_vehicles': [{
-                'license_plate': row.license_plate,
-                'avg_rating': float(row.avg_rating),
-                'rating_count': row.rating_count
-            } for row in top_vehicles],
-            'rating_distribution': [{
-                'rating': row.rating,
-                'count': row.count
-            } for row in rating_distribution]
-        }
-    })
-
-
-@app.route('/api/tomtom-traffic', methods=['GET'])
-def api_tomtom_traffic():
-    """Proxy endpoint for TomTom Traffic API to handle CORS and API key security"""
-    try:
-        lat = request.args.get('lat', type=float)
-        lng = request.args.get('lng', type=float)
-        zoom = request.args.get('zoom', type=int, default=12)
-        bbox = request.args.get('bbox', '')
-
-        if not lat or not lng:
-            return jsonify({'error': 'Missing latitude or longitude'}), 400
-
-        # Check if TomTom API key is available
-        if not tomtom_api_key:
-            print("TomTom API key not configured, returning simulated data")
-            return jsonify({
-                'flowSegmentData': [],
-                'simulated':
-                True,
-                'message':
-                'Using simulated data - API key not configured'
-            })
-
-        # TomTom Traffic Flow API for traffic density and speed data
-        tomtom_url = f"https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
-
-        import requests
-        headers = {'User-Agent': 'Driver-Rating-App/1.0'}
-        params = {
-            'key': tomtom_api_key,
-            'point': f'{lat},{lng}',
-            'unit': 'KMPH'
-        }
-
-        response = requests.get(tomtom_url,
-                                headers=headers,
-                                params=params,
-                                timeout=10)
-
-        if response.status_code == 200:
-            data = response.json()
-            print(
-                f"TomTom API success: Retrieved flow data with {len(data.get('flowSegmentData', []))} segments"
-            )
-            return jsonify(data)
-        else:
-            print(
-                f"TomTom API error: {response.status_code} - {response.text}")
-            # Return simulated data as fallback
-            return jsonify({
-                'flowSegmentData': [],
-                'simulated':
-                True,
-                'message':
-                f'TomTom API error {response.status_code}, using simulated data'
-            })
-
-    except Exception as e:
-        print(f"TomTom proxy error: {e}")
-        # Return simulated data as fallback
-        return jsonify({
-            'flowSegmentData': [],
-            'simulated': True,
-            'message': f'API error: {str(e)}, using simulated data'
-        })
-
-
-@app.route('/api/delete_my_comment', methods=['POST'])
-def api_delete_my_comment():
-    if not is_logged_in():
-        return jsonify({'error': 'Musisz być zalogowany'}), 401
-
-    data = request.get_json()
-    comment_id = data.get('comment_id')
-
-    comment = Comment.query.filter_by(id=comment_id,
-                                      user_id=session['user_id']).first()
-    if not comment:
-        return jsonify({
-            'error':
-            'Komentarz nie został znaleziony lub nie masz uprawnień'
-        }), 404
-
-    db.session.delete(comment)
-    db.session.commit()
-
-    return jsonify({'success': True, 'message': 'Komentarz został usunięty'})
-
-
-@app.route('/map')
-def map_view():
-    incidents = Incident.query.order_by(
-        Incident.created_at.desc()).limit(50).all()
-    return render_template('map.html', incidents=incidents)
-
-
-@app.route('/statistics')
-def statistics():
-    if not is_logged_in():
-        flash('Musisz być zalogowany, aby zobaczyć statystyki!', 'warning')
-        return redirect(url_for('login'))
-
-    user = get_current_user()
-    if not user:
-        flash('Błąd sesji użytkownika. Zaloguj się ponownie.', 'danger')
-        return redirect(url_for('login'))
-
-    user_stats = UserStatistics.query.filter_by(user_id=user.id).first()
-
-    if not user_stats:
-        user_stats = UserStatistics()
-        user_stats.user_id = user.id
-        db.session.add(user_stats)
-        db.session.commit()
-        user_stats.update_statistics()
-
-    # Get top users for comparison
-    top_users = db.session.query(UserStatistics, User).join(User).order_by(
-        UserStatistics.reputation_score.desc()).limit(10).all()
-
-    return render_template('statistics.html',
-                           user_stats=user_stats,
-                           top_users=top_users)
-
-
-@app.route('/ranking_users')
-def ranking_users():
-    sort_by = request.args.get(
-        'sort', 'reputation')  # reputation, ratings, comments, incidents
-
-    if sort_by == 'reputation':
-        top_users = db.session.query(UserStatistics, User).join(User).order_by(
-            UserStatistics.reputation_score.desc()).limit(50).all()
-    elif sort_by == 'ratings':
-        top_users = db.session.query(UserStatistics, User).join(User).order_by(
-            UserStatistics.total_ratings.desc()).limit(50).all()
-    elif sort_by == 'comments':
-        top_users = db.session.query(UserStatistics, User).join(User).order_by(
-            UserStatistics.total_comments.desc()).limit(50).all()
-    elif sort_by == 'incidents':
-        top_users = db.session.query(UserStatistics, User).join(User).order_by(
-            UserStatistics.total_incidents.desc()).limit(50).all()
-    else:
-        top_users = db.session.query(UserStatistics, User).join(User).order_by(
-            UserStatistics.reputation_score.desc()).limit(50).all()
-
-    return render_template('ranking_users.html',
-                           top_users=top_users,
-                           sort_by=sort_by)
-
-
-@app.route('/api/add_incident', methods=['POST'])
-def api_add_incident():
-    if not is_logged_in():
-        return jsonify({'error': 'Musisz być zalogowany'}), 401
-
-    data = request.get_json()
-    license_plate = data.get('license_plate', '').strip().upper()
-    latitude = data.get('latitude')
-    longitude = data.get('longitude')
-    incident_type = data.get('incident_type')
-    description = data.get('description', '').strip()
-    severity = data.get('severity', 1)
-
-    if not license_plate or not validate_license_plate(license_plate):
-        return jsonify({'error': 'Nieprawidłowy numer rejestracyjny'}), 400
-
-    if not latitude or not longitude:
-        return jsonify({'error': 'Lokalizacja jest wymagana'}), 400
-
-    if not incident_type or incident_type not in [
-            'aggressive_driving', 'poor_parking', 'traffic_violation', 'other'
-    ]:
-        return jsonify({'error': 'Nieprawidłowy typ zdarzenia'}), 400
-
-    if not description:
-        return jsonify({'error': 'Opis zdarzenia jest wymagany'}), 400
-
-    incident = Incident()
-    incident.user_id = session['user_id']
-    incident.license_plate = license_plate
-    incident.latitude = float(latitude)
-    incident.longitude = float(longitude)
-    incident.incident_type = incident_type
-    incident.description = description
-    incident.severity = int(severity)
-
-    db.session.add(incident)
-    db.session.commit()
-
-    # Update user statistics
-    user_stats = UserStatistics.query.filter_by(
-        user_id=session['user_id']).first()
-    if user_stats:
-        user_stats.update_statistics()
-
-    return jsonify({'success': True, 'message': 'Zdarzenie zostało dodane'})
-
-
 @app.route('/api/vote_comment', methods=['POST'])
+@login_required
 def api_vote_comment():
-    if not is_logged_in():
-        return jsonify({'error': 'Musisz być zalogowany'}), 401
-
+    """API endpoint for voting on a comment"""
     data = request.get_json()
     comment_id = data.get('comment_id')
     vote_type = data.get('vote_type')  # 'helpful' or 'unhelpful'
@@ -857,47 +657,56 @@ def api_vote_comment():
     return jsonify({'success': True, 'message': 'Głos został zapisany'})
 
 
-@app.route('/profile')
-def profile():
-    if not is_logged_in():
-        flash('Musisz być zalogowany, aby zobaczyć profil!', 'warning')
-        return redirect(url_for('login'))
+@app.route('/api/add_incident', methods=['POST'])
+@login_required
+def api_add_incident():
+    """API endpoint for adding an incident"""
+    data = request.get_json()
+    license_plate = data.get('license_plate', '').strip().upper()
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    incident_type = data.get('incident_type')
+    description = data.get('description', '').strip()
+    severity = data.get('severity', 1)
 
-    user = get_current_user()
-    if not user:
-        flash('Błąd sesji użytkownika. Zaloguj się ponownie.', 'danger')
-        return redirect(url_for('login'))
+    if not license_plate or not validate_license_plate(license_plate):
+        return jsonify({'error': 'Nieprawidłowy numer rejestracyjny'}), 400
 
-    # Get user's activity
-    user_ratings = Rating.query.filter_by(user_id=user.id).order_by(
-        Rating.created_at.desc()).limit(10).all()
-    user_comments = Comment.query.filter_by(user_id=user.id).order_by(
-        Comment.created_at.desc()).limit(10).all()
-    user_favorites = Favorite.query.filter_by(user_id=user.id).order_by(
-        Favorite.created_at.desc()).all()
+    if not latitude or not longitude:
+        return jsonify({'error': 'Lokalizacja jest wymagana'}), 400
 
-    # Get user statistics
-    user_stats = UserStatistics.query.filter_by(user_id=user.id).first()
-    if not user_stats:
-        user_stats = UserStatistics()
-        user_stats.user_id = user.id
-        db.session.add(user_stats)
-        db.session.commit()
+    if not incident_type or incident_type not in [
+            'aggressive_driving', 'poor_parking', 'traffic_violation', 'other'
+    ]:
+        return jsonify({'error': 'Nieprawidłowy typ zdarzenia'}), 400
+
+    if not description:
+        return jsonify({'error': 'Opis zdarzenia jest wymagany'}), 400
+
+    incident = Incident()
+    incident.user_id = session['user_id']
+    incident.license_plate = license_plate
+    incident.latitude = float(latitude)
+    incident.longitude = float(longitude)
+    incident.incident_type = incident_type
+    incident.description = description
+    incident.severity = int(severity)
+
+    db.session.add(incident)
+    db.session.commit()
+
+    # Update user statistics
+    user_stats = UserStatistics.query.filter_by(user_id=session['user_id']).first()
+    if user_stats:
         user_stats.update_statistics()
 
-    return render_template('profile.html',
-                           user=user,
-                           user_ratings=user_ratings,
-                           user_comments=user_comments,
-                           user_favorites=user_favorites,
-                           user_stats=user_stats)
+    return jsonify({'success': True, 'message': 'Zdarzenie zostało dodane'})
 
 
 @app.route('/api/favorite', methods=['POST'])
+@login_required
 def api_add_favorite():
-    if not is_logged_in():
-        return jsonify({'error': 'Musisz być zalogowany'}), 401
-
+    """API endpoint for adding a vehicle to favorites"""
     data = request.get_json()
     license_plate = data.get('license_plate', '').strip().upper()
     notes = data.get('notes', '').strip()
@@ -918,8 +727,7 @@ def api_add_favorite():
         user_id=session['user_id'], vehicle_id=vehicle.id).first()
 
     if existing_favorite:
-        return jsonify({'error':
-                        'Ten pojazd jest już w Twoich ulubionych'}), 400
+        return jsonify({'error': 'Ten pojazd jest już w Twoich ulubionych'}), 400
 
     # Create favorite
     favorite = Favorite()
@@ -930,17 +738,13 @@ def api_add_favorite():
     db.session.add(favorite)
     db.session.commit()
 
-    return jsonify({
-        'success': True,
-        'message': 'Pojazd został dodany do ulubionych'
-    })
+    return jsonify({'success': True, 'message': 'Pojazd został dodany do ulubionych'})
 
 
 @app.route('/api/favorite', methods=['DELETE'])
+@login_required
 def api_remove_favorite():
-    if not is_logged_in():
-        return jsonify({'error': 'Musisz być zalogowany'}), 401
-
+    """API endpoint for removing a vehicle from favorites"""
     data = request.get_json()
     license_plate = data.get('license_plate', '').strip().upper()
 
@@ -952,25 +756,19 @@ def api_remove_favorite():
                                         vehicle_id=vehicle.id).first()
 
     if not favorite:
-        return jsonify({'error':
-                        'Ten pojazd nie jest w Twoich ulubionych'}), 404
+        return jsonify({'error': 'Ten pojazd nie jest w Twoich ulubionych'}), 404
 
     db.session.delete(favorite)
     db.session.commit()
 
-    return jsonify({
-        'success': True,
-        'message': 'Pojazd został usunięty z ulubionych'
-    })
+    return jsonify({'success': True, 'message': 'Pojazd został usunięty z ulubionych'})
 
 
 @app.route('/api/favorite/<license_plate>', methods=['GET'])
+@login_required
 def api_check_favorite(license_plate):
-    if not is_logged_in():
-        return jsonify({'is_favorite': False})
-
-    vehicle = Vehicle.query.filter_by(
-        license_plate=license_plate.upper()).first()
+    """API endpoint for checking if a vehicle is in favorites"""
+    vehicle = Vehicle.query.filter_by(license_plate=license_plate.upper()).first()
     if not vehicle:
         return jsonify({'is_favorite': False})
 
@@ -980,14 +778,201 @@ def api_check_favorite(license_plate):
     return jsonify({'is_favorite': favorite is not None})
 
 
-@app.route('/manifest.json')
-def manifest():
-    return app.send_static_file('manifest.json')
+@app.route('/api/delete_my_comment', methods=['POST'])
+@login_required
+def api_delete_my_comment():
+    """API endpoint for users to delete their own comments"""
+    data = request.get_json()
+    comment_id = data.get('comment_id')
+
+    comment = Comment.query.filter_by(id=comment_id, user_id=session['user_id']).first()
+    if not comment:
+        return jsonify({
+            'error': 'Komentarz nie został znaleziony lub nie masz uprawnień'
+        }), 404
+
+    db.session.delete(comment)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Komentarz został usunięty'})
 
 
-def validate_license_plate(plate):
-    # Polish license plate validation - only letters and numbers
-    return bool(re.match(r'^[A-Z0-9]+$', plate.upper().replace(' ', '')))
+@app.route('/api/tomtom-traffic', methods=['GET'])
+def api_tomtom_traffic():
+    """Proxy endpoint for TomTom Traffic API"""
+    try:
+        lat = request.args.get('lat', type=float)
+        lng = request.args.get('lng', type=float)
+        zoom = request.args.get('zoom', type=int, default=12)
+
+        if not lat or not lng:
+            return jsonify({'error': 'Missing latitude or longitude'}), 400
+
+        # Check if TomTom API key is available
+        if not tomtom_api_key:
+            logging.info("TomTom API key not configured, returning simulated data")
+            return jsonify({
+                'flowSegmentData': [],
+                'simulated': True,
+                'message': 'Using simulated data - API key not configured'
+            })
+
+        # TomTom Traffic Flow API for traffic density and speed data
+        tomtom_url = "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
+
+        import requests
+        headers = {'User-Agent': 'Driver-Rating-App/1.0'}
+        params = {
+            'key': tomtom_api_key,
+            'point': f'{lat},{lng}',
+            'unit': 'KMPH'
+        }
+
+        response = requests.get(tomtom_url, headers=headers, params=params, timeout=10)
+
+        if response.status_code == 200:
+            data = response.json()
+            logging.info(
+                f"TomTom API success: Retrieved flow data with {len(data.get('flowSegmentData', []))} segments"
+            )
+            return jsonify(data)
+        else:
+            logging.error(f"TomTom API error: {response.status_code} - {response.text}")
+            # Return simulated data as fallback
+            return jsonify({
+                'flowSegmentData': [],
+                'simulated': True,
+                'message': f'TomTom API error {response.status_code}, using simulated data'
+            })
+
+    except Exception as e:
+        logging.error(f"TomTom proxy error: {e}")
+        # Return simulated data as fallback
+        return jsonify({
+            'flowSegmentData': [],
+            'simulated': True,
+            'message': f'API error: {str(e)}, using simulated data'
+        })
+
+
+# Admin API Routes
+@app.route('/api/admin/delete_comment', methods=['POST'])
+@admin_required
+def api_admin_delete_comment():
+    """Admin API endpoint for deleting comments"""
+    data = request.get_json()
+    comment_id = data.get('comment_id')
+
+    comment = Comment.query.get(comment_id)
+    if not comment:
+        return jsonify({'error': 'Komentarz nie został znaleziony'}), 404
+
+    db.session.delete(comment)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Komentarz został usunięty'})
+
+
+@app.route('/api/admin/block_vehicle', methods=['POST'])
+@admin_required
+def api_admin_block_vehicle():
+    """Admin API endpoint for blocking/unblocking vehicles"""
+    data = request.get_json()
+    license_plate = data.get('license_plate', '').strip().upper()
+
+    vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
+    if not vehicle:
+        return jsonify({'error': 'Pojazd nie został znaleziony'}), 404
+
+    vehicle.is_blocked = not vehicle.is_blocked
+    db.session.commit()
+
+    status = 'zablokowany' if vehicle.is_blocked else 'odblokowany'
+    return jsonify({'success': True, 'message': f'Pojazd został {status}'})
+
+
+@app.route('/api/admin/clear_reports', methods=['POST'])
+@admin_required
+def api_admin_clear_reports():
+    """Admin API endpoint for clearing comment reports"""
+    data = request.get_json()
+    comment_id = data.get('comment_id')
+
+    comment = Comment.query.get(comment_id)
+    if not comment:
+        return jsonify({'error': 'Komentarz nie został znaleziony'}), 404
+
+    # Clear reports for this comment
+    comment.reports = 0
+    # Delete all report entries for this comment
+    Report.query.filter_by(comment_id=comment_id).delete()
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Zgłoszenia zostały wyczyszczone'})
+
+
+@app.route('/api/admin/stats', methods=['GET'])
+@admin_required
+def api_admin_stats():
+    """Admin API endpoint for comprehensive statistics"""
+    # Calculate comprehensive statistics
+    total_users = User.query.count()
+    total_vehicles = Vehicle.query.count()
+    total_ratings = Rating.query.count()
+    total_comments = Comment.query.count()
+    total_reports = Report.query.count()
+    blocked_vehicles = Vehicle.query.filter_by(is_blocked=True).count()
+
+    # Monthly registration stats (last 6 months)
+    from sqlalchemy import extract, func
+    monthly_users = db.session.query(
+        extract('month', User.created_at).label('month'),
+        extract('year', User.created_at).label('year'),
+        func.count(User.id).label('count')).group_by(
+            extract('year', User.created_at),
+            extract('month', User.created_at)).order_by(
+                extract('year', User.created_at),
+                extract('month', User.created_at)).limit(6).all()
+
+    # Top rated vehicles
+    top_vehicles = db.session.query(
+        Vehicle.license_plate,
+        func.avg(Rating.rating).label('avg_rating'),
+        func.count(Rating.id).label('rating_count')).join(Rating).group_by(
+            Vehicle.id).having(func.count(Rating.id) >= 3).order_by(
+                func.avg(Rating.rating).desc()).limit(10).all()
+
+    # Rating distribution
+    rating_distribution = db.session.query(
+        Rating.rating,
+        func.count(Rating.id).label('count')).group_by(Rating.rating).order_by(
+            Rating.rating).all()
+
+    return jsonify({
+        'success': True,
+        'stats': {
+            'total_users': total_users,
+            'total_vehicles': total_vehicles,
+            'total_ratings': total_ratings,
+            'total_comments': total_comments,
+            'total_reports': total_reports,
+            'blocked_vehicles': blocked_vehicles,
+            'monthly_users': [{
+                'month': row.month,
+                'year': row.year,
+                'count': row.count
+            } for row in monthly_users],
+            'top_vehicles': [{
+                'license_plate': row.license_plate,
+                'avg_rating': float(row.avg_rating),
+                'rating_count': row.rating_count
+            } for row in top_vehicles],
+            'rating_distribution': [{
+                'rating': row.rating,
+                'count': row.count
+            } for row in rating_distribution]
+        }
+    })
 
 
 if __name__ == '__main__':
