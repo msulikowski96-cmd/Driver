@@ -389,9 +389,13 @@ def api_comment():
     if not comment_text:
         return jsonify({'error': 'Komentarz nie może być pusty'}), 400
 
+    # Get or create vehicle (same as in rating API)
     vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
     if not vehicle:
-        return jsonify({'error': 'Pojazd nie został znaleziony'}), 404
+        vehicle = Vehicle()
+        vehicle.license_plate = license_plate
+        db.session.add(vehicle)
+        db.session.flush()
 
     if vehicle.is_blocked:
         return jsonify({'error': 'Ten pojazd został zablokowany'}), 403
