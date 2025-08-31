@@ -376,49 +376,75 @@ def api_rate():
 
 @app.route('/api/comment', methods=['POST'])
 def api_comment():
-    if not is_logged_in():
-        return jsonify({'error': 'Musisz być zalogowany'}), 401
+    try:
+        print(f"Comment API called, user logged in: {is_logged_in()}")
+        
+        if not is_logged_in():
+            print("User not logged in")
+            return jsonify({'error': 'Musisz być zalogowany'}), 401
 
-    data = request.get_json()
-    license_plate = data.get('license_plate', '').strip().upper()
-    comment_text = data.get('comment', '').strip()
+        data = request.get_json()
+        print(f"Received comment data: {data}")
+        
+        if not data:
+            print("No JSON data received")
+            return jsonify({'error': 'Brak danych'}), 400
+            
+        license_plate = data.get('license_plate', '').strip().upper()
+        comment_text = data.get('comment', '').strip()
 
-    if not validate_license_plate(license_plate):
-        return jsonify({'error': 'Nieprawidłowy numer rejestracyjny'}), 400
+        print(f"License plate: {license_plate}, Comment: {comment_text[:50]}...")
 
-    if not comment_text:
-        return jsonify({'error': 'Komentarz nie może być pusty'}), 400
+        if not validate_license_plate(license_plate):
+            print(f"Invalid license plate: {license_plate}")
+            return jsonify({'error': 'Nieprawidłowy numer rejestracyjny'}), 400
 
-    # Get or create vehicle (same as in rating API)
-    vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
-    if not vehicle:
-        vehicle = Vehicle()
-        vehicle.license_plate = license_plate
-        db.session.add(vehicle)
-        db.session.flush()
+        if not comment_text:
+            print("Empty comment text")
+            return jsonify({'error': 'Komentarz nie może być pusty'}), 400
 
-    if vehicle.is_blocked:
-        return jsonify({'error': 'Ten pojazd został zablokowany'}), 403
+        # Get or create vehicle (same as in rating API)
+        vehicle = Vehicle.query.filter_by(license_plate=license_plate).first()
+        if not vehicle:
+            print(f"Creating new vehicle: {license_plate}")
+            vehicle = Vehicle()
+            vehicle.license_plate = license_plate
+            db.session.add(vehicle)
+            db.session.flush()
 
-    comment = Comment()
-    comment.vehicle_id = vehicle.id
-    comment.user_id = session['user_id']
-    comment.content = comment_text
+        if vehicle.is_blocked:
+            print(f"Vehicle is blocked: {license_plate}")
+            return jsonify({'error': 'Ten pojazd został zablokowany'}), 403
 
-    db.session.add(comment)
-    db.session.commit()
+        comment = Comment()
+        comment.vehicle_id = vehicle.id
+        comment.user_id = session['user_id']
+        comment.content = comment_text
 
-    # Update user statistics
-    user_stats = UserStatistics.query.filter_by(
-        user_id=session['user_id']).first()
-    if not user_stats:
-        user_stats = UserStatistics()
-        user_stats.user_id = session['user_id']
-        db.session.add(user_stats)
+        print(f"Creating comment for vehicle_id: {vehicle.id}, user_id: {session['user_id']}")
+
+        db.session.add(comment)
         db.session.commit()
-    user_stats.update_statistics()
 
-    return jsonify({'success': True, 'message': 'Komentarz został dodany'})
+        print("Comment saved successfully")
+
+        # Update user statistics
+        user_stats = UserStatistics.query.filter_by(
+            user_id=session['user_id']).first()
+        if not user_stats:
+            user_stats = UserStatistics()
+            user_stats.user_id = session['user_id']
+            db.session.add(user_stats)
+            db.session.commit()
+        user_stats.update_statistics()
+
+        return jsonify({'success': True, 'message': 'Komentarz został dodany'})
+        
+    except Exception as e:
+        print(f"Error in comment API: {str(e)}")
+        print(f"Error traceback: {e.__class__.__name__}")
+        db.session.rollback()
+        return jsonify({'error': 'Wystąpił błąd serwera'}), 500
 
 
 @app.route('/api/report_comment', methods=['POST'])

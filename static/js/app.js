@@ -79,7 +79,7 @@ function highlightStars(container, rating) {
 async function submitRating(licensePlate, rating) {
     try {
         showLoading(true);
-        
+        console.log('Submitting rating:', licensePlate, rating);
         
         const response = await fetch('/api/rate', {
             method: 'POST',
@@ -93,7 +93,9 @@ async function submitRating(licensePlate, rating) {
             })
         });
         
+        console.log('Response status:', response.status);
         const responseText = await response.text();
+        console.log('Response body:', responseText);
         
         let data = {};
         try {
@@ -165,6 +167,9 @@ async function submitComment(licensePlate) {
     const textarea = document.querySelector(`#comment-${licensePlate}`);
     const commentText = textarea ? textarea.value.trim() : '';
     
+    console.log('Textarea found:', !!textarea);
+    console.log('Comment text:', commentText);
+    
     if (!commentText) {
         showMessage('Wprowadź treść komentarza', 'warning');
         return;
@@ -173,6 +178,7 @@ async function submitComment(licensePlate) {
     try {
         showLoading(true);
         
+        console.log('Sending comment request for:', licensePlate);
         
         const response = await fetch('/api/comment', {
             method: 'POST',
@@ -186,7 +192,9 @@ async function submitComment(licensePlate) {
             })
         });
         
+        console.log('Comment response status:', response.status);
         const responseText = await response.text();
+        console.log('Comment response body:', responseText);
         
         let data = {};
         try {
@@ -217,6 +225,7 @@ async function submitComment(licensePlate) {
         }
     } catch (error) {
         console.error('Error submitting comment:', error);
+        console.error('Error details:', error.message, error.stack);
         showMessage('Wystąpił błąd podczas dodawania komentarza', 'error');
     } finally {
         showLoading(false);
