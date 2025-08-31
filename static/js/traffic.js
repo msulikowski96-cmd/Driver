@@ -62,14 +62,9 @@ class TrafficMap {
             zoomControl: false
         });
 
-        // Add TomTom map tiles with proper API endpoint
-        // Using the Maps API v1 with custom style
-        const tomtomApiKey = '34RIQppvhaUXhkjB4a3TF4Q3vG77ow5K';
-        
-        // Try the standard TomTom raster tiles first
-        L.tileLayer(`https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${tomtomApiKey}`, {
-            attribution: '© TomTom',
-            maxZoom: 22
+        // Add dark themed OpenStreetMap tiles - reliable and working
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors | Traffic data by TomTom'
         }).addTo(this.map);
 
         // Add custom zoom control
