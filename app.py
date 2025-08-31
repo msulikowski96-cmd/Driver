@@ -366,8 +366,8 @@ def api_rate():
     user_stats = UserStatistics.query.filter_by(
         user_id=session['user_id']).first()
     if not user_stats:
-        user_stats = UserStatistics(user_id=session['user_id'])
-
+        user_stats = UserStatistics()
+        user_stats.user_id = session['user_id']
         db.session.add(user_stats)
         db.session.commit()
     user_stats.update_statistics()
@@ -409,7 +409,8 @@ def api_comment():
     user_stats = UserStatistics.query.filter_by(
         user_id=session['user_id']).first()
     if not user_stats:
-        user_stats = UserStatistics(user_id=session['user_id'])
+        user_stats = UserStatistics()
+        user_stats.user_id = session['user_id']
         db.session.add(user_stats)
         db.session.commit()
     user_stats.update_statistics()
@@ -690,7 +691,8 @@ def statistics():
     user_stats = UserStatistics.query.filter_by(user_id=user.id).first()
 
     if not user_stats:
-        user_stats = UserStatistics(user_id=user.id)
+        user_stats = UserStatistics()
+        user_stats.user_id = user.id
         db.session.add(user_stats)
         db.session.commit()
         user_stats.update_statistics()
@@ -867,7 +869,8 @@ def profile():
     # Get user statistics
     user_stats = UserStatistics.query.filter_by(user_id=user.id).first()
     if not user_stats:
-        user_stats = UserStatistics(user_id=user.id)
+        user_stats = UserStatistics()
+        user_stats.user_id = user.id
         db.session.add(user_stats)
         db.session.commit()
         user_stats.update_statistics()
