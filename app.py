@@ -16,6 +16,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import re
 
+from flask import send_from_directory
+import os
+
+@app.route('/ads.txt')
+def ads_txt():
+    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'ads.txt')
+
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
