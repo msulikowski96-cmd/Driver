@@ -61,9 +61,9 @@ class TrafficMap {
                 return;
             }
 
-            // Wait up to 10 seconds for the library to load
+            // Wait up to 30 seconds for the library to load (increased timeout)
             let attempts = 0;
-            const maxAttempts = 100; // 10 seconds with 100ms intervals
+            const maxAttempts = 300; // 30 seconds with 100ms intervals
             
             const checkInterval = setInterval(() => {
                 attempts++;
@@ -74,7 +74,7 @@ class TrafficMap {
                     resolve();
                 } else if (attempts >= maxAttempts) {
                     clearInterval(checkInterval);
-                    reject(new Error('Mapbox GL JS failed to load within 10 seconds'));
+                    reject(new Error('Mapbox GL JS failed to load within 30 seconds'));
                 }
             }, 100);
         });
@@ -594,10 +594,19 @@ class TrafficMap {
 
 // Initialize traffic map when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    const trafficMapContainer = document.getElementById('traffic-map');
-    if (trafficMapContainer) {
-        window.trafficMap = new TrafficMap('traffic-map');
-    }
+    // Wait a bit longer for all scripts to load
+    setTimeout(() => {
+        const trafficMapContainer = document.getElementById('traffic-map');
+        const mainTrafficMapContainer = document.getElementById('main-traffic-map');
+        
+        if (trafficMapContainer) {
+            window.trafficMap = new TrafficMap('traffic-map');
+        }
+        
+        if (mainTrafficMapContainer) {
+            window.mainTrafficMap = new TrafficMap('main-traffic-map', { zoom: 12 });
+        }
+    }, 1000); // Wait 1 second for scripts to fully load
 });
 
 // CSS styles for traffic map

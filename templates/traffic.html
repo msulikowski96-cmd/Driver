@@ -4,47 +4,62 @@
 {% block title %}Mapa ruchu - Oceny Kierowców{% endblock %}
 
 {% block head %}
-<!-- Mapbox GL JS for WebGL rendering -->
-<link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
-<script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+<!-- Mapbox GL JS - Try multiple CDN sources for reliability -->
+<link href='https://unpkg.com/mapbox-gl@2.15.0/dist/mapbox-gl.css' rel='stylesheet' />
 
 <script>
-// Check if Mapbox GL JS loaded properly
-window.addEventListener('load', function() {
-    if (typeof mapboxgl === 'undefined') {
-        console.error('Mapbox GL JS failed to load from primary source, trying fallback...');
+// Load Mapbox GL JS with multiple fallback sources
+(function loadMapboxGL() {
+    const sources = [
+        'https://unpkg.com/mapbox-gl@2.15.0/dist/mapbox-gl.js',
+        'https://cdn.jsdelivr.net/npm/mapbox-gl@2.15.0/dist/mapbox-gl.min.js',
+        'https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'
+    ];
+    
+    let currentSource = 0;
+    
+    function tryLoadScript() {
+        if (currentSource >= sources.length) {
+            console.error('All Mapbox GL JS sources failed to load');
+            showMapboxError();
+            return;
+        }
         
-        // Try loading from CDN as fallback
         const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/mapbox-gl@2.15.0/dist/mapbox-gl.min.js';
+        script.src = sources[currentSource];
+        
         script.onload = function() {
-            console.log('Mapbox GL JS loaded from fallback CDN');
-            // Re-initialize traffic map if it failed earlier
-            if (window.mainTrafficMap && !window.mainTrafficMap.map) {
-                window.mainTrafficMap.init();
-            }
+            console.log(`Mapbox GL JS loaded successfully from source ${currentSource + 1}`);
+            window.mapboxLoaded = true;
         };
+        
         script.onerror = function() {
-            console.error('Both Mapbox GL JS sources failed to load');
-            const container = document.getElementById('main-traffic-map');
-            if (container) {
-                container.innerHTML = `
-                    <div style="padding: 20px; text-align: center; color: #dc3545; background: #f8f9fa; border-radius: 8px;">
-                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
-                        <h5>Nie można załadować biblioteki map</h5>
-                        <p>Sprawdź połączenie internetowe i odśwież stronę.</p>
-                        <button class="btn btn-primary" onclick="location.reload()">
-                            <i class="fas fa-sync me-1"></i>Odśwież stronę
-                        </button>
-                    </div>
-                `;
-            }
+            console.warn(`Failed to load Mapbox GL JS from source ${currentSource + 1}, trying next...`);
+            currentSource++;
+            tryLoadScript();
         };
+        
         document.head.appendChild(script);
-    } else {
-        console.log('Mapbox GL JS loaded successfully');
     }
-});
+    
+    function showMapboxError() {
+        const container = document.getElementById('main-traffic-map');
+        if (container) {
+            container.innerHTML = `
+                <div style="padding: 40px; text-align: center; color: #dc3545; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                    <h4>Nie można załadować biblioteki map</h4>
+                    <p class="mb-3">Sprawdź połączenie internetowe i spróbuj ponownie.</p>
+                    <button class="btn btn-primary" onclick="location.reload()">
+                        <i class="fas fa-sync me-1"></i>Odśwież stronę
+                    </button>
+                </div>
+            `;
+        }
+    }
+    
+    tryLoadScript();
+})();
 </script>
 {% endblock %}
 
@@ -181,18 +196,45 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Update location status
     updateLocationStatus();
     
-    try {
-        // Initialize main traffic map
-        mainTrafficMap = new TrafficMap('main-traffic-map', {
-            zoom: 12
-        });
-        
-        // Update last update time
-        updateLastUpdateTime();
-        setInterval(updateLastUpdateTime, 60000); // Update every minute
-    } catch (error) {
-        console.error('Failed to initialize traffic map:', error);
-    }
+    // Wait for scripts to fully load
+    setTimeout(async () => {
+        try {
+            // Check if Mapbox GL JS is available
+            if (typeof mapboxgl === 'undefined') {
+                console.log('Waiting for Mapbox GL JS to load...');
+                // Wait additional time for async loading
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            
+            if (typeof mapboxgl !== 'undefined') {
+                // Initialize main traffic map
+                mainTrafficMap = new TrafficMap('main-traffic-map', {
+                    zoom: 12
+                });
+                
+                // Update last update time
+                updateLastUpdateTime();
+                setInterval(updateLastUpdateTime, 60000); // Update every minute
+            } else {
+                throw new Error('Mapbox GL JS library not available');
+            }
+        } catch (error) {
+            console.error('Failed to initialize traffic map:', error);
+            const container = document.getElementById('main-traffic-map');
+            if (container) {
+                container.innerHTML = `
+                    <div style="padding: 40px; text-align: center; color: #dc3545; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
+                        <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                        <h4>Nie udało się załadować mapy ruchu</h4>
+                        <p class="mb-3">Problem z ładowaniem biblioteki map. Spróbuj ponownie.</p>
+                        <button class="btn btn-primary" onclick="location.reload()">
+                            <i class="fas fa-sync me-1"></i>Odśwież stronę
+                        </button>
+                    </div>
+                `;
+            }
+        }
+    }, 1500); // Wait 1.5 seconds for all scripts to load
 });
 
 function updateLocationStatus() {
