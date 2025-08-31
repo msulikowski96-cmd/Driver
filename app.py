@@ -50,7 +50,8 @@ if database_url:
     }
 else:
     # Development - SQLite
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///instance/driver_ratings.db"
+    app.config[
+        "SQLALCHEMY_DATABASE_URI"] = "sqlite:///instance/driver_ratings.db"
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
         "pool_pre_ping": True,
     }
