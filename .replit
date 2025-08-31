@@ -1,4 +1,4 @@
-modules = ["web", "nodejs-20", "python-3.11"]
+modules = ["web", "nodejs-20", "python-3.11", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
@@ -38,3 +38,4 @@ externalPort = 5000
 exposeLocalhost = true
 
 [agent]
+integrations = ["python_database==1.0.0"]

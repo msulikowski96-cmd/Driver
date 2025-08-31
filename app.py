@@ -37,9 +37,8 @@ app.config['FLASK_ENV'] = os.environ.get("FLASK_ENV", "development")
 app.config['DEBUG'] = os.environ.get("FLASK_DEBUG", "True").lower() == "true"
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# Configure the database
-# Temporarily use SQLite for development
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///driver_ratings.db"
+# Configure the database - Use PostgreSQL
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
