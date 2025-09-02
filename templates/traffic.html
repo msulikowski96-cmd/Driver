@@ -4,63 +4,6 @@
 {% block title %}Mapa ruchu - Oceny Kierowców{% endblock %}
 
 {% block head %}
-<!-- Mapbox GL JS - Try multiple CDN sources for reliability -->
-<link href='https://unpkg.com/mapbox-gl@2.15.0/dist/mapbox-gl.css' rel='stylesheet' />
-
-<script>
-// Load Mapbox GL JS with multiple fallback sources
-(function loadMapboxGL() {
-    const sources = [
-        'https://unpkg.com/mapbox-gl@2.15.0/dist/mapbox-gl.js',
-        'https://cdn.jsdelivr.net/npm/mapbox-gl@2.15.0/dist/mapbox-gl.min.js',
-        'https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'
-    ];
-    
-    let currentSource = 0;
-    
-    function tryLoadScript() {
-        if (currentSource >= sources.length) {
-            console.error('All Mapbox GL JS sources failed to load');
-            showMapboxError();
-            return;
-        }
-        
-        const script = document.createElement('script');
-        script.src = sources[currentSource];
-        
-        script.onload = function() {
-            console.log(`Mapbox GL JS loaded successfully from source ${currentSource + 1}`);
-            window.mapboxLoaded = true;
-        };
-        
-        script.onerror = function() {
-            console.warn(`Failed to load Mapbox GL JS from source ${currentSource + 1}, trying next...`);
-            currentSource++;
-            tryLoadScript();
-        };
-        
-        document.head.appendChild(script);
-    }
-    
-    function showMapboxError() {
-        const container = document.getElementById('main-traffic-map');
-        if (container) {
-            container.innerHTML = `
-                <div style="padding: 40px; text-align: center; color: #dc3545; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
-                    <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
-                    <h4>Nie można załadować biblioteki map</h4>
-                    <p class="mb-3">Sprawdź połączenie internetowe i spróbuj ponownie.</p>
-                    <button class="btn btn-primary" onclick="location.reload()">
-                        <i class="fas fa-sync me-1"></i>Odśwież stronę
-                    </button>
-                </div>
-            `;
-        }
-    }
-    
-    tryLoadScript();
-})();
-</script>
 {% endblock %}
 
 {% block content %}
@@ -186,56 +129,38 @@
     </div>
 </div>
 
-<!-- Load traffic.js after app.js is already loaded -->
-<script src="{{ url_for('static', filename='js/traffic.js') }}"></script>
-
 <script>
-let mainTrafficMap;
+let trafficMap;
+let trafficLayers = [];
 
-document.addEventListener('DOMContentLoaded', async function() {
+// Wait for everything to load
+function waitForLeaflet() {
+    if (typeof L !== 'undefined') {
+        console.log('Leaflet załadowany pomyślnie');
+        initializeTrafficPage();
+    } else {
+        console.log('Oczekiwanie na Leaflet...');
+        setTimeout(waitForLeaflet, 100);
+    }
+}
+
+// Start when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM załadowany, sprawdzam Leaflet...');
+    waitForLeaflet();
+});
+
+function initializeTrafficPage() {
     // Update location status
     updateLocationStatus();
     
-    // Wait for scripts to fully load
-    setTimeout(async () => {
-        try {
-            // Check if Mapbox GL JS is available
-            if (typeof mapboxgl === 'undefined') {
-                console.log('Waiting for Mapbox GL JS to load...');
-                // Wait additional time for async loading
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-            
-            if (typeof mapboxgl !== 'undefined') {
-                // Initialize main traffic map
-                mainTrafficMap = new TrafficMap('main-traffic-map', {
-                    zoom: 12
-                });
-                
-                // Update last update time
-                updateLastUpdateTime();
-                setInterval(updateLastUpdateTime, 60000); // Update every minute
-            } else {
-                throw new Error('Mapbox GL JS library not available');
-            }
-        } catch (error) {
-            console.error('Failed to initialize traffic map:', error);
-            const container = document.getElementById('main-traffic-map');
-            if (container) {
-                container.innerHTML = `
-                    <div style="padding: 40px; text-align: center; color: #dc3545; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
-                        <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
-                        <h4>Nie udało się załadować mapy ruchu</h4>
-                        <p class="mb-3">Problem z ładowaniem biblioteki map. Spróbuj ponownie.</p>
-                        <button class="btn btn-primary" onclick="location.reload()">
-                            <i class="fas fa-sync me-1"></i>Odśwież stronę
-                        </button>
-                    </div>
-                `;
-            }
-        }
-    }, 1500); // Wait 1.5 seconds for all scripts to load
-});
+    // Initialize traffic map
+    initTrafficMap();
+    
+    // Update last update time
+    updateLastUpdateTime();
+    setInterval(updateLastUpdateTime, 60000); // Update every minute
+}
 
 function updateLocationStatus() {
     const locationText = document.getElementById('location-text');
@@ -260,10 +185,190 @@ function updateLocationStatus() {
     }
 }
 
+function initTrafficMap() {
+    try {
+        // Domyślna lokalizacja - Warszawa
+        trafficMap = L.map('main-traffic-map').setView([52.237049, 21.017532], 12);
+
+        // Dodaj ciemną mapę
+        L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
+            attribution: '© Stadia Maps © OpenMapTiles © OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(trafficMap);
+
+        // Spróbuj uzyskać lokalizację użytkownika
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    trafficMap.setView([lat, lng], 13);
+                    
+                    // Dodaj marker lokalizacji użytkownika
+                    L.marker([lat, lng], {
+                        icon: L.divIcon({
+                            className: 'user-location-icon',
+                            html: '<div style="background-color: #007bff; width: 12px; height: 12px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,123,255,0.5);"></div>',
+                            iconSize: [18, 18],
+                            iconAnchor: [9, 9]
+                        })
+                    }).addTo(trafficMap)
+                    .bindPopup('Twoja lokalizacja')
+                    .openPopup();
+                },
+                function(error) {
+                    console.log('Błąd geolokalizacji:', error);
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 300000
+                }
+            );
+        }
+
+        // Symuluj dane o ruchu
+        generateTrafficData();
+        
+    } catch (error) {
+        console.error('Błąd inicjalizacji mapy ruchu:', error);
+        const container = document.getElementById('main-traffic-map');
+        if (container) {
+            container.innerHTML = `
+                <div style="padding: 40px; text-align: center; color: #dc3545; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                    <h4>Nie udało się załadować mapy ruchu</h4>
+                    <p class="mb-3">Problem z inicjalizacją mapy. Spróbuj ponownie.</p>
+                    <button class="btn btn-primary" onclick="location.reload()">
+                        <i class="fas fa-sync me-1"></i>Odśwież stronę
+                    </button>
+                </div>
+            `;
+        }
+    }
+}
+
+function generateTrafficData() {
+    // Wyczyść poprzednie dane
+    trafficLayers.forEach(layer => trafficMap.removeLayer(layer));
+    trafficLayers = [];
+    
+    const center = trafficMap.getCenter();
+    const currentHour = new Date().getHours();
+    const isRushHour = (currentHour >= 7 && currentHour <= 9) || (currentHour >= 16 && currentHour <= 18);
+    
+    // Nazwy ulic w Warszawie
+    const streetNames = [
+        'Aleje Jerozolimskie', 'Marszałkowska', 'Wisłostrada', 'Krakowskie Przedmieście',
+        'Nowy Świat', 'Al. Solidarności', 'Puławska', 'Grochowska', 'Wołoska',
+        'Al. Jana Pawła II', 'Targowa', 'Okopowa', 'Chłodna', 'Grójecka'
+    ];
+    
+    let trafficStats = { light: 0, moderate: 0, heavy: 0, jam: 0 };
+    
+    // Generuj segmenty ruchu
+    for (let i = 0; i < 15; i++) {
+        const startLat = center.lat + (Math.random() - 0.5) * 0.03;
+        const startLng = center.lng + (Math.random() - 0.5) * 0.03;
+        const endLat = startLat + (Math.random() - 0.5) * 0.01;
+        const endLng = startLng + (Math.random() - 0.5) * 0.01;
+        
+        let level = 'light';
+        let speed = 45;
+        let color = '#28a745';
+        let weight = 3;
+        
+        if (isRushHour) {
+            const random = Math.random();
+            if (random < 0.15) {
+                level = 'jam';
+                speed = Math.floor(Math.random() * 10) + 5;
+                color = '#dc3545';
+                weight = 6;
+                trafficStats.jam++;
+            } else if (random < 0.4) {
+                level = 'heavy';
+                speed = Math.floor(Math.random() * 15) + 15;
+                color = '#fd7e14';
+                weight = 5;
+                trafficStats.heavy++;
+            } else if (random < 0.7) {
+                level = 'moderate';
+                speed = Math.floor(Math.random() * 20) + 25;
+                color = '#ffc107';
+                weight = 4;
+                trafficStats.moderate++;
+            } else {
+                trafficStats.light++;
+            }
+        } else {
+            const random = Math.random();
+            if (random < 0.05) {
+                level = 'moderate';
+                speed = Math.floor(Math.random() * 15) + 30;
+                color = '#ffc107';
+                weight = 4;
+                trafficStats.moderate++;
+            } else {
+                trafficStats.light++;
+            }
+        }
+        
+        const line = L.polyline([[startLat, startLng], [endLat, endLng]], {
+            color: color,
+            weight: weight,
+            opacity: 0.8
+        }).addTo(trafficMap);
+        
+        const streetName = streetNames[i % streetNames.length];
+        line.bindPopup(`
+            <div>
+                <strong>${streetName}</strong><br>
+                Natężenie: ${getTrafficLevelName(level)}<br>
+                Aktualna prędkość: ${speed} km/h<br>
+                <small>Dane symulowane</small>
+            </div>
+        `);
+        
+        trafficLayers.push(line);
+    }
+    
+    // Aktualizuj statystyki
+    updateTrafficStats(trafficStats);
+}
+
+function getTrafficLevelName(level) {
+    const names = {
+        'light': 'Płynny',
+        'moderate': 'Umiarkowany', 
+        'heavy': 'Intensywny',
+        'jam': 'Korek'
+    };
+    return names[level] || 'Nieznany';
+}
+
+function updateTrafficStats(stats) {
+    const total = stats.light + stats.moderate + stats.heavy + stats.jam;
+    if (total > 0) {
+        document.getElementById('smooth-count').textContent = Math.round((stats.light / total) * 100) + '%';
+        document.getElementById('moderate-count').textContent = Math.round((stats.moderate / total) * 100) + '%';
+        document.getElementById('heavy-count').textContent = Math.round((stats.heavy / total) * 100) + '%';
+        document.getElementById('jam-count').textContent = Math.round((stats.jam / total) * 100) + '%';
+    }
+}
+
 function refreshMainTrafficMap() {
-    if (mainTrafficMap) {
-        mainTrafficMap.refreshTrafficData();
+    if (trafficMap) {
+        generateTrafficData();
         updateLastUpdateTime();
+        
+        const btn = document.querySelector('button[onclick="refreshMainTrafficMap()"] i');
+        if (btn) {
+            btn.classList.add('fa-spin');
+            setTimeout(() => {
+                btn.classList.remove('fa-spin');
+            }, 1000);
+        }
     }
 }
 
