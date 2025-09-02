@@ -451,8 +451,60 @@ def map_view():
 
 @app.route('/traffic')
 def traffic():
-    """Traffic map page"""
-    return render_template('traffic.html')
+    """Community dashboard page"""
+    from datetime import datetime, timedelta
+    
+    # Get recent ratings (last 20)
+    recent_ratings = Rating.query.order_by(Rating.created_at.desc()).limit(20).all()
+    
+    # Get recent comments (last 10)
+    recent_comments = Comment.query.order_by(Comment.created_at.desc()).limit(10).all()
+    
+    # Get today's top vehicles
+    today = datetime.utcnow().date()
+    today_ratings = Rating.query.filter(Rating.created_at >= today).all()
+    
+    # Group by vehicle and calculate averages
+    vehicle_ratings = {}
+    for rating in today_ratings:
+        if rating.vehicle_id not in vehicle_ratings:
+            vehicle_ratings[rating.vehicle_id] = {
+                'vehicle': rating.vehicle,
+                'ratings': [],
+                'license_plate': rating.vehicle.license_plate
+            }
+        vehicle_ratings[rating.vehicle_id]['ratings'].append(rating.rating)
+    
+    # Calculate averages and sort
+    top_vehicles_today = []
+    for vehicle_id, data in vehicle_ratings.items():
+        avg_rating = sum(data['ratings']) / len(data['ratings'])
+        if avg_rating >= 4.0:  # Only show vehicles with good ratings
+            top_vehicles_today.append({
+                'vehicle': data['vehicle'],
+                'license_plate': data['license_plate'],
+                'avg_rating': avg_rating,
+                'rating_count': len(data['ratings'])
+            })
+    
+    # Sort by rating, then by count
+    top_vehicles_today.sort(key=lambda x: (x['avg_rating'], x['rating_count']), reverse=True)
+    top_vehicles_today = top_vehicles_today[:6]  # Top 6
+    
+    # Get community statistics
+    total_vehicles = Vehicle.query.count()
+    total_ratings = Rating.query.count()
+    total_comments = Comment.query.count()
+    total_users = User.query.count()
+    
+    return render_template('traffic.html',
+                         recent_ratings=recent_ratings,
+                         recent_comments=recent_comments,
+                         top_vehicles_today=top_vehicles_today,
+                         total_vehicles=total_vehicles,
+                         total_ratings=total_ratings,
+                         total_comments=total_comments,
+                         total_users=total_users)
 
 
 @app.route('/manifest.json')

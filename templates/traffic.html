@@ -1,10 +1,6 @@
-
 {% extends "base.html" %}
 
-{% block title %}Mapa ruchu - Oceny Kierowców{% endblock %}
-
-{% block head %}
-{% endblock %}
+{% block title %}Panel Społeczności - Oceny Kierowców{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -12,373 +8,172 @@
         <div class="card">
             <div class="card-header">
                 <h2 class="card-title mb-0">
-                    <i class="fas fa-road me-2"></i>Mapa natężenia ruchu
+                    <i class="fas fa-users me-2"></i>Panel Społeczności
                 </h2>
-            </div>
-            <div class="card-body">
-                <div class="alert alert-info" id="location-status">
-                    <i class="fas fa-info-circle me-2"></i>
-                    <span id="location-text">Mapa w ciemnym stylu TomTom pokazuje natężenie ruchu drogowego. Dane aktualizowane co 5 minut.</span>
-                </div>
+                <p class="text-muted mb-0">Aktywność społeczności i statystyki ocen kierowców</p>
             </div>
         </div>
     </div>
 </div>
-
-
-
-
 
 <div class="row mt-4">
-    <div class="col-lg-9">
-        <div class="card">
-            <div class="card-body p-0">
-                <div style="height: 600px; width: 100%;">
-                    <div id="main-traffic-map" style="height: 100%; width: 100%;"></div>
+    <div class="col-lg-8">
+        <!-- Recent Activity -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-clock me-2"></i>Ostatnia aktywność
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_ratings %}
+                <div class="activity-list">
+                    {% for rating in recent_ratings[:8] %}
+                    <div class="d-flex align-items-center mb-3 p-2 rounded" style="background-color: rgba(13, 110, 253, 0.1);">
+                        <div class="flex-shrink-0">
+                            <div class="rating-circle bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                {{ rating.rating }}⭐
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <strong>{{ rating.vehicle.license_plate }}</strong>
+                                    <span class="text-muted">otrzymał ocenę {{ rating.rating }}/5</span>
+                                </div>
+                                <small class="text-muted">{{ rating.created_at.strftime('%H:%M') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
+                {% else %}
+                <p class="text-muted text-center py-4">
+                    <i class="fas fa-info-circle me-2"></i>Brak ostatniej aktywności
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Top Rated Vehicles Today -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-star me-2"></i>Najlepiej oceniane dziś
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if top_vehicles_today %}
+                <div class="row">
+                    {% for vehicle in top_vehicles_today %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-success">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">
+                                            <a href="{{ url_for('vehicle_detail', license_plate=vehicle.license_plate) }}" class="text-decoration-none">
+                                                {{ vehicle.license_plate }}
+                                            </a>
+                                        </h6>
+                                        <div class="star-rating">
+                                            {% for i in range(1, 6) %}
+                                                <i class="fas fa-star {% if i <= vehicle.avg_rating %}text-warning{% else %}text-muted{% endif %}"></i>
+                                            {% endfor %}
+                                            <span class="ms-2">{{ "%.1f"|format(vehicle.avg_rating) }}/5</span>
+                                        </div>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted">{{ vehicle.rating_count }} ocen</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-3">
+                    <i class="fas fa-info-circle me-2"></i>Brak ocen z dzisiaj
+                </p>
+                {% endif %}
             </div>
         </div>
     </div>
     
-    <div class="col-lg-3">
-        <div class="card">
+    <div class="col-lg-4">
+        <!-- Community Stats -->
+        <div class="card mb-4">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-chart-bar me-2"></i>Statystyki ruchu
+                    <i class="fas fa-chart-bar me-2"></i>Statystyki społeczności
                 </h5>
             </div>
             <div class="card-body">
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span><span style="color: #28a745;">●</span> Płynny</span>
-                        <span class="badge bg-success" id="smooth-count">25%</span>
+                <div class="row text-center">
+                    <div class="col-6 mb-3">
+                        <div class="p-3 rounded" style="background-color: rgba(40, 167, 69, 0.1);">
+                            <h4 class="text-success mb-1">{{ total_vehicles }}</h4>
+                            <small class="text-muted">Pojazdów w bazie</small>
+                        </div>
                     </div>
-                </div>
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span><span style="color: #ffc107;">●</span> Umiarkowany</span>
-                        <span class="badge bg-warning" id="moderate-count">35%</span>
+                    <div class="col-6 mb-3">
+                        <div class="p-3 rounded" style="background-color: rgba(13, 110, 253, 0.1);">
+                            <h4 class="text-primary mb-1">{{ total_ratings }}</h4>
+                            <small class="text-muted">Wszystkich ocen</small>
+                        </div>
                     </div>
-                </div>
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span><span style="color: #fd7e14;">●</span> Intensywny</span>
-                        <span class="badge bg-warning" id="heavy-count">25%</span>
+                    <div class="col-6 mb-3">
+                        <div class="p-3 rounded" style="background-color: rgba(255, 193, 7, 0.1);">
+                            <h4 class="text-warning mb-1">{{ total_comments }}</h4>
+                            <small class="text-muted">Komentarzy</small>
+                        </div>
                     </div>
-                </div>
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span><span style="color: #dc3545;">●</span> Korek</span>
-                        <span class="badge bg-danger" id="jam-count">15%</span>
+                    <div class="col-6 mb-3">
+                        <div class="p-3 rounded" style="background-color: rgba(220, 53, 69, 0.1);">
+                            <h4 class="text-danger mb-1">{{ total_users }}</h4>
+                            <small class="text-muted">Użytkowników</small>
+                        </div>
                     </div>
-                </div>
-                
-                <hr>
-                
-                <div class="text-center">
-                    <h6>Ostatnia aktualizacja</h6>
-                    <p class="text-muted small" id="last-update">--:--:--</p>
-                    <button class="btn btn-primary btn-sm" onclick="refreshMainTrafficMap()">
-                        <i class="fas fa-sync me-1"></i>Odśwież
-                    </button>
                 </div>
             </div>
         </div>
         
-        <div class="card mt-3">
+        <!-- Recent Comments -->
+        <div class="card">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-exclamation-triangle me-2"></i>Aktywne zakłócenia
+                    <i class="fas fa-comments me-2"></i>Najnowsze komentarze
                 </h5>
             </div>
             <div class="card-body">
-                <div class="list-group list-group-flush">
-                    <div class="list-group-item bg-transparent border-0 px-0 py-2">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <h6 class="mb-1">Aleje Jerozolimskie</h6>
-                                <p class="mb-1 small">Intensywny ruch w kierunku centrum</p>
-                                <small class="text-muted">5 min temu</small>
-                            </div>
-                            <span class="badge bg-danger">Korek</span>
+                {% if recent_comments %}
+                <div class="comment-list" style="max-height: 400px; overflow-y: auto;">
+                    {% for comment in recent_comments[:5] %}
+                    <div class="mb-3 p-2 rounded" style="background-color: rgba(108, 117, 125, 0.1);">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <strong class="text-primary">{{ comment.vehicle.license_plate }}</strong>
+                            <small class="text-muted">{{ comment.created_at.strftime('%d.%m %H:%M') }}</small>
+                        </div>
+                        <p class="mb-1 small">{{ comment.content[:80] }}{% if comment.content|length > 80 %}...{% endif %}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">przez {{ comment.user.username }}</small>
+                            {% if comment.helpful_votes > 0 %}
+                            <small class="text-success">
+                                <i class="fas fa-thumbs-up me-1"></i>{{ comment.helpful_votes }}
+                            </small>
+                            {% endif %}
                         </div>
                     </div>
-                    <div class="list-group-item bg-transparent border-0 px-0 py-2">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <h6 class="mb-1">Marszałkowska</h6>
-                                <p class="mb-1 small">Utrudnienia na wysokości Centralnego</p>
-                                <small class="text-muted">12 min temu</small>
-                            </div>
-                            <span class="badge bg-warning">Intensywny</span>
-                        </div>
-                    </div>
-                    <div class="list-group-item bg-transparent border-0 px-0 py-2">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <h6 class="mb-1">Wisłostrada</h6>
-                                <p class="mb-1 small">Płynny ruch w obu kierunkach</p>
-                                <small class="text-muted">3 min temu</small>
-                            </div>
-                            <span class="badge bg-success">Płynny</span>
-                        </div>
-                    </div>
+                    {% endfor %}
                 </div>
+                {% else %}
+                <p class="text-muted text-center py-3">
+                    <i class="fas fa-info-circle me-2"></i>Brak komentarzy
+                </p>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
-
-<script>
-let trafficMap;
-let trafficLayers = [];
-
-// Wait for everything to load
-function waitForLeaflet() {
-    if (typeof L !== 'undefined') {
-        console.log('Leaflet załadowany pomyślnie');
-        initializeTrafficPage();
-    } else {
-        console.log('Oczekiwanie na Leaflet...');
-        setTimeout(waitForLeaflet, 100);
-    }
-}
-
-// Start when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM załadowany, sprawdzam Leaflet...');
-    waitForLeaflet();
-});
-
-function initializeTrafficPage() {
-    // Update location status
-    updateLocationStatus();
-    
-    // Initialize traffic map
-    initTrafficMap();
-    
-    // Update last update time
-    updateLastUpdateTime();
-    setInterval(updateLastUpdateTime, 60000); // Update every minute
-}
-
-function updateLocationStatus() {
-    const locationText = document.getElementById('location-text');
-    const locationStatus = document.getElementById('location-status');
-    
-    if (navigator.geolocation) {
-        locationText.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Pobieranie Twojej lokalizacji...';
-        
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                locationText.innerHTML = '<i class="fas fa-map-marker-alt me-2"></i>Mapa pokazuje natężenie ruchu w Twojej okolicy z TomTom API. Dane aktualizowane co 5 minut.';
-                locationStatus.className = 'alert alert-success';
-            },
-            function(error) {
-                locationText.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Nie można pobrać lokalizacji. Używana domyślna lokalizacja.';
-                locationStatus.className = 'alert alert-warning';
-            }
-        );
-    } else {
-        locationText.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Geolokalizacja nie jest obsługiwana. Używana domyślna lokalizacja.';
-        locationStatus.className = 'alert alert-warning';
-    }
-}
-
-function initTrafficMap() {
-    try {
-        // Domyślna lokalizacja - Warszawa
-        trafficMap = L.map('main-traffic-map').setView([52.237049, 21.017532], 12);
-
-        // Dodaj ciemną mapę
-        L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
-            attribution: '© Stadia Maps © OpenMapTiles © OpenStreetMap contributors',
-            maxZoom: 19
-        }).addTo(trafficMap);
-
-        // Spróbuj uzyskać lokalizację użytkownika
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    trafficMap.setView([lat, lng], 13);
-                    
-                    // Dodaj marker lokalizacji użytkownika
-                    L.marker([lat, lng], {
-                        icon: L.divIcon({
-                            className: 'user-location-icon',
-                            html: '<div style="background-color: #007bff; width: 12px; height: 12px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,123,255,0.5);"></div>',
-                            iconSize: [18, 18],
-                            iconAnchor: [9, 9]
-                        })
-                    }).addTo(trafficMap)
-                    .bindPopup('Twoja lokalizacja')
-                    .openPopup();
-                },
-                function(error) {
-                    console.log('Błąd geolokalizacji:', error);
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 300000
-                }
-            );
-        }
-
-        // Symuluj dane o ruchu
-        generateTrafficData();
-        
-    } catch (error) {
-        console.error('Błąd inicjalizacji mapy ruchu:', error);
-        const container = document.getElementById('main-traffic-map');
-        if (container) {
-            container.innerHTML = `
-                <div style="padding: 40px; text-align: center; color: #dc3545; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
-                    <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
-                    <h4>Nie udało się załadować mapy ruchu</h4>
-                    <p class="mb-3">Problem z inicjalizacją mapy. Spróbuj ponownie.</p>
-                    <button class="btn btn-primary" onclick="location.reload()">
-                        <i class="fas fa-sync me-1"></i>Odśwież stronę
-                    </button>
-                </div>
-            `;
-        }
-    }
-}
-
-function generateTrafficData() {
-    // Wyczyść poprzednie dane
-    trafficLayers.forEach(layer => trafficMap.removeLayer(layer));
-    trafficLayers = [];
-    
-    const center = trafficMap.getCenter();
-    const currentHour = new Date().getHours();
-    const isRushHour = (currentHour >= 7 && currentHour <= 9) || (currentHour >= 16 && currentHour <= 18);
-    
-    // Nazwy ulic w Warszawie
-    const streetNames = [
-        'Aleje Jerozolimskie', 'Marszałkowska', 'Wisłostrada', 'Krakowskie Przedmieście',
-        'Nowy Świat', 'Al. Solidarności', 'Puławska', 'Grochowska', 'Wołoska',
-        'Al. Jana Pawła II', 'Targowa', 'Okopowa', 'Chłodna', 'Grójecka'
-    ];
-    
-    let trafficStats = { light: 0, moderate: 0, heavy: 0, jam: 0 };
-    
-    // Generuj segmenty ruchu
-    for (let i = 0; i < 15; i++) {
-        const startLat = center.lat + (Math.random() - 0.5) * 0.03;
-        const startLng = center.lng + (Math.random() - 0.5) * 0.03;
-        const endLat = startLat + (Math.random() - 0.5) * 0.01;
-        const endLng = startLng + (Math.random() - 0.5) * 0.01;
-        
-        let level = 'light';
-        let speed = 45;
-        let color = '#28a745';
-        let weight = 3;
-        
-        if (isRushHour) {
-            const random = Math.random();
-            if (random < 0.15) {
-                level = 'jam';
-                speed = Math.floor(Math.random() * 10) + 5;
-                color = '#dc3545';
-                weight = 6;
-                trafficStats.jam++;
-            } else if (random < 0.4) {
-                level = 'heavy';
-                speed = Math.floor(Math.random() * 15) + 15;
-                color = '#fd7e14';
-                weight = 5;
-                trafficStats.heavy++;
-            } else if (random < 0.7) {
-                level = 'moderate';
-                speed = Math.floor(Math.random() * 20) + 25;
-                color = '#ffc107';
-                weight = 4;
-                trafficStats.moderate++;
-            } else {
-                trafficStats.light++;
-            }
-        } else {
-            const random = Math.random();
-            if (random < 0.05) {
-                level = 'moderate';
-                speed = Math.floor(Math.random() * 15) + 30;
-                color = '#ffc107';
-                weight = 4;
-                trafficStats.moderate++;
-            } else {
-                trafficStats.light++;
-            }
-        }
-        
-        const line = L.polyline([[startLat, startLng], [endLat, endLng]], {
-            color: color,
-            weight: weight,
-            opacity: 0.8
-        }).addTo(trafficMap);
-        
-        const streetName = streetNames[i % streetNames.length];
-        line.bindPopup(`
-            <div>
-                <strong>${streetName}</strong><br>
-                Natężenie: ${getTrafficLevelName(level)}<br>
-                Aktualna prędkość: ${speed} km/h<br>
-                <small>Dane symulowane</small>
-            </div>
-        `);
-        
-        trafficLayers.push(line);
-    }
-    
-    // Aktualizuj statystyki
-    updateTrafficStats(trafficStats);
-}
-
-function getTrafficLevelName(level) {
-    const names = {
-        'light': 'Płynny',
-        'moderate': 'Umiarkowany', 
-        'heavy': 'Intensywny',
-        'jam': 'Korek'
-    };
-    return names[level] || 'Nieznany';
-}
-
-function updateTrafficStats(stats) {
-    const total = stats.light + stats.moderate + stats.heavy + stats.jam;
-    if (total > 0) {
-        document.getElementById('smooth-count').textContent = Math.round((stats.light / total) * 100) + '%';
-        document.getElementById('moderate-count').textContent = Math.round((stats.moderate / total) * 100) + '%';
-        document.getElementById('heavy-count').textContent = Math.round((stats.heavy / total) * 100) + '%';
-        document.getElementById('jam-count').textContent = Math.round((stats.jam / total) * 100) + '%';
-    }
-}
-
-function refreshMainTrafficMap() {
-    if (trafficMap) {
-        generateTrafficData();
-        updateLastUpdateTime();
-        
-        const btn = document.querySelector('button[onclick="refreshMainTrafficMap()"] i');
-        if (btn) {
-            btn.classList.add('fa-spin');
-            setTimeout(() => {
-                btn.classList.remove('fa-spin');
-            }, 1000);
-        }
-    }
-}
-
-function updateLastUpdateTime() {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('pl-PL');
-    const lastUpdateElement = document.getElementById('last-update');
-    if (lastUpdateElement) {
-        lastUpdateElement.textContent = timeString;
-    }
-}
-</script>
 {% endblock %}
